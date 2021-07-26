@@ -219,8 +219,7 @@ struct obs_source_cea_708 {
 	uint64_t timestamp;
 };
 
-#define OBS_SOURCE_FRAME_FLIP (1 << 0)
-#define OBS_SOURCE_FRAME_LINEAR_ALPHA (1 << 1)
+#define OBS_SOURCE_FRAME_LINEAR_ALPHA (1 << 0)
 
 /**
  * Source asynchronous video output structure.  Used with
@@ -247,10 +246,8 @@ struct obs_source_frame {
 	bool full_range;
 	float color_range_min[3];
 	float color_range_max[3];
-	union {
-		uint8_t flip : 1; /* deprecated */
-		uint8_t flags;
-	};
+	bool flip;
+	uint8_t flags;
 
 	/* used internally by libobs */
 	volatile long refs;
@@ -269,10 +266,8 @@ struct obs_source_frame2 {
 	float color_matrix[16];
 	float color_range_min[3];
 	float color_range_max[3];
-	union {
-		uint8_t flip : 1; /* deprecated */
-		uint8_t flags;
-	};
+	bool flip;
+	uint8_t flags;
 };
 
 /** Access to the argc/argv used to start OBS. What you see is what you get. */
@@ -616,6 +611,10 @@ EXPORT void obs_enum_sources(bool (*enum_proc)(void *, obs_source_t *),
 /** Enumerates scenes */
 EXPORT void obs_enum_scenes(bool (*enum_proc)(void *, obs_source_t *),
 			    void *param);
+
+/** Enumerates all sources (regardless of type) */
+EXPORT void obs_enum_all_sources(bool (*enum_proc)(void *, obs_source_t *),
+				 void *param);
 
 /** Enumerates outputs */
 EXPORT void obs_enum_outputs(bool (*enum_proc)(void *, obs_output_t *),
@@ -962,6 +961,9 @@ EXPORT uint32_t obs_source_get_width(obs_source_t *source);
 
 /** Gets the height of a source (if it has video) */
 EXPORT uint32_t obs_source_get_height(obs_source_t *source);
+
+/** Hints whether or not the source will blend texels */
+EXPORT bool obs_source_get_texcoords_centered(obs_source_t *source);
 
 /**
  * If the source is a filter, returns the parent source of the filter.  Only
