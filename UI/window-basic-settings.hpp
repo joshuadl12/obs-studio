@@ -165,6 +165,8 @@ private:
 	QPointer<QWidget> vodTrackContainer;
 	QPointer<QRadioButton> vodTrack[MAX_AUDIO_MIXES];
 
+	QIcon hotkeyConflictIcon;
+
 	void SaveCombo(QComboBox *widget, const char *section,
 		       const char *value);
 	void SaveComboData(QComboBox *widget, const char *section,
@@ -370,6 +372,7 @@ private slots:
 	void VideoChangedResolution();
 	void VideoChangedRestart();
 	void HotkeysChanged();
+	bool ScanDuplicateHotkeys(QFormLayout *layout);
 	void ReloadHotkeys(obs_hotkey_id ignoreKey = OBS_INVALID_HOTKEY_ID);
 	void AdvancedChanged();
 	void AdvancedChangedRestart();
@@ -399,6 +402,8 @@ private slots:
 	void SetHotkeysIcon(const QIcon &icon);
 	void SetAdvancedIcon(const QIcon &icon);
 
+	void UseStreamKeyAdvClicked();
+
 protected:
 	virtual void closeEvent(QCloseEvent *event) override;
 	void reject() override;
@@ -406,4 +411,9 @@ protected:
 public:
 	OBSBasicSettings(QWidget *parent);
 	~OBSBasicSettings();
+
+	inline const QIcon &GetHotkeyConflictIcon() const
+	{
+		return hotkeyConflictIcon;
+	}
 };

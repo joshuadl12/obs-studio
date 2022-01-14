@@ -4,6 +4,7 @@
 #include <X11/extensions/Xcomposite.h>
 #include <pthread.h>
 
+#include <algorithm>
 #include <vector>
 
 #include <obs-module.h>
@@ -57,6 +58,13 @@ obs_properties_t *XCompcapMain::properties()
 		props, "capture_window", obs_module_text("Window"),
 		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 
+	struct WindowInfo {
+		std::string lex_comparable;
+		std::string name;
+		std::string desc;
+	};
+
+	std::vector<WindowInfo> window_strings;
 	for (Window win : XCompcap::getTopLevelWindows()) {
 		std::string wname = XCompcap::getWindowName(win);
 		std::string cls = XCompcap::getWindowClass(win);
@@ -64,7 +72,28 @@ obs_properties_t *XCompcapMain::properties()
 		std::string desc =
 			(winid + WIN_STRING_DIV + wname + WIN_STRING_DIV + cls);
 
-		obs_property_list_add_string(wins, wname.c_str(), desc.c_str());
+		std::string wname_lowercase = wname;
+		std::transform(wname_lowercase.begin(), wname_lowercase.end(),
+			       wname_lowercase.begin(),
+			       [](unsigned char c) { return std::tolower(c); });
+
+		window_strings.push_back({.lex_comparable = wname_lowercase,
+					  .name = wname,
+					  .desc = desc});
+	}
+
+	std::sort(window_strings.begin(), window_strings.end(),
+		  [](const WindowInfo &a, const WindowInfo &b) -> bool {
+			  return std::lexicographical_compare(
+				  a.lex_comparable.begin(),
+				  a.lex_comparable.end(),
+				  b.lex_comparable.begin(),
+				  b.lex_comparable.end());
+		  });
+
+	for (auto s : window_strings) {
+		obs_property_list_add_string(wins, s.name.c_str(),
+					     s.desc.c_str());
 	}
 
 	obs_properties_add_int(props, "cut_top", obs_module_text("CropTop"), 0,
@@ -171,6 +200,7 @@ struct XCompcapMain_private {
 	bool show_cursor = true;
 	bool cursor_outside = false;
 	xcursor_t *cursor = nullptr;
+	bool tick_error_suppressed = false;
 };
 
 XCompcapMain::XCompcapMain(obs_data_t *settings, obs_source_t *source)
@@ -271,14 +301,6 @@ static void xcc_cleanup(XCompcapMain_private *p)
 		GLuint gltex = *(GLuint *)gs_texture_get_obj(p->gltex);
 		glBindTexture(GL_TEXTURE_2D, gltex);
 		if (p->glxpixmap) {
-			glXReleaseTexImageEXT(xdisp, p->glxpixmap,
-					      GLX_FRONT_LEFT_EXT);
-			if (xlock.gotError()) {
-				blog(LOG_ERROR,
-				     "cleanup glXReleaseTexImageEXT failed: %s",
-				     xlock.getErrorText().c_str());
-				xlock.resetError();
-			}
 			glXDestroyPixmap(xdisp, p->glxpixmap);
 			if (xlock.gotError()) {
 				blog(LOG_ERROR,
@@ -368,6 +390,8 @@ void XCompcapMain::updateSettings(obs_data_t *settings)
 	Window prevWin = p->win;
 
 	xcc_cleanup(p);
+
+	p->tick_error_suppressed = false;
 
 	if (settings) {
 		/* Settings initialized or changed */
@@ -525,7 +549,7 @@ void XCompcapMain::updateSettings(obs_data_t *settings)
 				     GS_GL_DUMMYTEX);
 	GLuint gltex = *(GLuint *)gs_texture_get_obj(p->gltex);
 	glBindTexture(GL_TEXTURE_2D, gltex);
-	glXBindTexImageEXT(xdisp, p->glxpixmap, GLX_FRONT_LEFT_EXT, NULL);
+	glXBindTexImageEXT(xdisp, p->glxpixmap, GLX_FRONT_EXT, nullptr);
 	if (xlock.gotError()) {
 		blog(LOG_ERROR, "glXBindTexImageEXT failed: %s",
 		     xlock.getErrorText().c_str());
@@ -539,6 +563,12 @@ void XCompcapMain::updateSettings(obs_data_t *settings)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	// glxBindTexImageEXT might modify the textures format.
 	gs_color_format format = gs_format_from_tex();
+	glXReleaseTexImageEXT(xdisp, p->glxpixmap, GLX_FRONT_EXT);
+	if (xlock.gotError()) {
+		blog(LOG_ERROR, "glXReleaseTexImageEXT failed: %s",
+		     xlock.getErrorText().c_str());
+		xlock.resetError();
+	}
 	glBindTexture(GL_TEXTURE_2D, 0);
 	// sync OBS texture format based on any glxBindTexImageEXT changes
 	p->gltex->format = format;
@@ -591,7 +621,7 @@ void XCompcapMain::tick(float seconds)
 		p->win = 0;
 	}
 
-	XDisplayLock xlock;
+	XErrorLock xlock;
 	XWindowAttributes attr;
 
 	if (!p->win || !XGetWindowAttributes(xdisp, p->win, &attr)) {
@@ -622,6 +652,14 @@ void XCompcapMain::tick(float seconds)
 		XSync(xdisp, 0);
 	}
 
+	glBindTexture(GL_TEXTURE_2D, *(GLuint *)gs_texture_get_obj(p->gltex));
+	glXBindTexImageEXT(xdisp, p->glxpixmap, GLX_FRONT_EXT, nullptr);
+	if (xlock.gotError() && !p->tick_error_suppressed) {
+		blog(LOG_ERROR, "glXBindTexImageEXT failed: %s",
+		     xlock.getErrorText().c_str());
+		p->tick_error_suppressed = true;
+	}
+
 	if (p->include_border) {
 		gs_copy_texture_region(p->tex, 0, 0, p->gltex, p->cur_cut_left,
 				       p->cur_cut_top, width(), height());
@@ -631,6 +669,14 @@ void XCompcapMain::tick(float seconds)
 				       p->cur_cut_top + p->border, width(),
 				       height());
 	}
+
+	glXReleaseTexImageEXT(xdisp, p->glxpixmap, GLX_FRONT_EXT);
+	if (xlock.gotError() && !p->tick_error_suppressed) {
+		blog(LOG_ERROR, "glXReleaseTexImageEXT failed: %s",
+		     xlock.getErrorText().c_str());
+		p->tick_error_suppressed = true;
+	}
+	glBindTexture(GL_TEXTURE_2D, 0);
 
 	if (p->cursor && p->show_cursor) {
 		xcursor_tick(p->cursor);

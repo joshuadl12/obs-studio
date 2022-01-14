@@ -170,18 +170,21 @@ install_obs-deps() {
     hr "Setting up pre-built macOS OBS dependencies v${1}"
     ensure_dir "${DEPS_BUILD_DIR}"
     step "Download..."
-    ${CURLCMD} --progress-bar -L -C - -O https://github.com/obsproject/obs-deps/releases/download/${1}/macos-deps-${CURRENT_ARCH}-${1}.tar.gz
+    ${CURLCMD} --progress-bar -L -C - -O https://github.com/obsproject/obs-deps/releases/download/${1}/macos-deps-${1}-${CURRENT_ARCH}.tar.xz
     step "Unpack..."
-    /usr/bin/tar -xf "./macos-deps-${CURRENT_ARCH}-${1}.tar.gz" -C /tmp
+    mkdir -p /tmp/obsdeps
+    /usr/bin/tar -xf "./macos-deps-${1}-${CURRENT_ARCH}.tar.xz" -C /tmp/obsdeps
+    /usr/bin/xattr -r -d com.apple.quarantine /tmp/obsdeps
 }
 
 install_qt-deps() {
     hr "Setting up pre-built dependency QT v${1}"
     ensure_dir "${DEPS_BUILD_DIR}"
     step "Download..."
-    ${CURLCMD} --progress-bar -L -C - -O https://github.com/obsproject/obs-deps/releases/download/${2}/macos-qt-${1}-${CURRENT_ARCH}-${2}.tar.gz
+    ${CURLCMD} --progress-bar -L -C - -O https://github.com/obsproject/obs-deps/releases/download/${2}/macos-deps-qt-${2}-${CURRENT_ARCH}.tar.xz
     step "Unpack..."
-    /usr/bin/tar -xf ./macos-qt-${1}-${CURRENT_ARCH}-${2}.tar.gz -C /tmp
+    mkdir -p /tmp/obsdeps
+    /usr/bin/tar -xf ./macos-deps-qt-${2}-${CURRENT_ARCH}.tar.xz -C /tmp/obsdeps
     /usr/bin/xattr -r -d com.apple.quarantine /tmp/obsdeps
 }
 
@@ -359,18 +362,34 @@ bundle_dylibs() {
         ./OBS.app/Contents/PlugIns/obs-x264.so
         ./OBS.app/Contents/PlugIns/text-freetype2.so
         ./OBS.app/Contents/PlugIns/obs-outputs.so
+        ./OBS.app/Contents/PlugIns/aja.so
+        ./OBS.app/Contents/PlugIns/aja-output-ui.so
         )
+
+    SEARCH_PATHS=(
+        /tmp/obsdeps/lib
+        /tmp/obsdeps/lib/QtSvg.framework
+        /tmp/obsdeps/lib/QtXml.framework
+        /tmp/obsdeps/lib/QtNetwork.framework
+        /tmp/obsdeps/lib/QtCore.framework
+        /tmp/obsdeps/lib/QtGui.framework
+        /tmp/obsdeps/lib/QtWidgets.framework
+        /tmp/obsdeps/lib/QtDBus.framework
+        /tmp/obsdeps/lib/QtPrintSupport.framework
+    )
     if ! [ "${MACOS_CEF_BUILD_VERSION:-${CI_MACOS_CEF_VERSION}}" -le 3770 ]; then
         "${CI_SCRIPTS}/app/dylibbundler" -cd -of -a ./OBS.app -q -f \
             -s ./OBS.app/Contents/MacOS \
             -s "${DEPS_BUILD_DIR}/sparkle/Sparkle.framework" \
             -s ./rundir/${BUILD_CONFIG}/bin/ \
+            $(echo "${SEARCH_PATHS[@]/#/-s }") \
             $(echo "${BUNDLE_PLUGINS[@]/#/-x }")
     else
         "${CI_SCRIPTS}/app/dylibbundler" -cd -of -a ./OBS.app -q -f \
             -s ./OBS.app/Contents/MacOS \
             -s "${DEPS_BUILD_DIR}/sparkle/Sparkle.framework" \
             -s ./rundir/${BUILD_CONFIG}/bin/ \
+            $(echo "${SEARCH_PATHS[@]/#/-s }") \
             $(echo "${BUNDLE_PLUGINS[@]/#/-x }") \
             -x ./OBS.app/Contents/PlugIns/obs-browser-page
     fi
@@ -381,15 +400,6 @@ bundle_dylibs() {
     else
         /bin/cp ./libobs-opengl/${BUILD_CONFIG}/libobs-opengl.so ./OBS.app/Contents/Frameworks
     fi
-
-    step "Copy QtNetwork for plugin support"
-    /bin/cp -R /tmp/obsdeps/lib/QtNetwork.framework ./OBS.app/Contents/Frameworks
-    /bin/chmod -R +w ./OBS.app/Contents/Frameworks/QtNetwork.framework
-    /bin/rm -r ./OBS.app/Contents/Frameworks/QtNetwork.framework/Headers
-    /bin/rm -r ./OBS.app/Contents/Frameworks/QtNetwork.framework/Versions/5/Headers/
-    /bin/chmod 644 ./OBS.app/Contents/Frameworks/QtNetwork.framework/Versions/5/Resources/Info.plist
-    install_name_tool -id @executable_path/../Frameworks/QtNetwork.framework/Versions/5/QtNetwork ./OBS.app/Contents/Frameworks/QtNetwork.framework/Versions/5/QtNetwork
-    install_name_tool -change /tmp/obsdeps/lib/QtCore.framework/Versions/5/QtCore @executable_path/../Frameworks/QtCore.framework/Versions/5/QtCore ./OBS.app/Contents/Frameworks/QtNetwork.framework/Versions/5/QtNetwork
 }
 
 install_frameworks() {
@@ -572,7 +582,7 @@ codesign_bundle() {
 
     step "Code-sign DAL Plugin..."
     /bin/echo -n "${COLOR_ORANGE}"
-    /usr/bin/codesign --force --options runtime --deep --sign "${CODESIGN_IDENT}" "./OBS.app/Contents/Resources/data/obs-mac-virtualcam.plugin"
+    /usr/bin/codesign --force --options runtime --deep --sign "${CODESIGN_IDENT}" "./OBS.app/Contents/Resources/data/obs-plugins/mac-virtualcam/obs-mac-virtualcam.plugin"
     /bin/echo -n "${COLOR_RESET}"
 
     step "Code-sign OBS code..."

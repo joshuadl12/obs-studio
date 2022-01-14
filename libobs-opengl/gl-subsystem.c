@@ -20,8 +20,12 @@
 #include "gl-subsystem.h"
 
 /* Goofy Windows.h macros need to be removed */
-#undef far
+#ifdef near
 #undef near
+#endif
+#ifdef far
+#undef far
+#endif
 
 /* #define SHOW_ALL_GL_MESSAGES */
 
@@ -1254,6 +1258,17 @@ void device_blend_function_separate(gs_device_t *device,
 	glBlendFuncSeparate(gl_src_c, gl_dst_c, gl_src_a, gl_dst_a);
 	if (!gl_success("glBlendFuncSeparate"))
 		blog(LOG_ERROR, "device_blend_function_separate (GL) failed");
+
+	UNUSED_PARAMETER(device);
+}
+
+void device_blend_op(gs_device_t *device, enum gs_blend_op_type op)
+{
+	GLenum gl_blend_op = convert_gs_blend_op_type(op);
+
+	glBlendEquation(gl_blend_op);
+	if (!gl_success("glBlendEquation"))
+		blog(LOG_ERROR, "device_blend_op (GL) failed");
 
 	UNUSED_PARAMETER(device);
 }

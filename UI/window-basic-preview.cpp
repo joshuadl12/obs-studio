@@ -1,7 +1,6 @@
 #include <QGuiApplication>
 #include <QMouseEvent>
 
-#include <algorithm>
 #include <cmath>
 #include <string>
 #include <graphics/vec4.h>
@@ -33,9 +32,6 @@ OBSBasicPreview::~OBSBasicPreview()
 		gs_vertexbuffer_destroy(rectFill);
 
 	obs_leave_graphics();
-
-	if (wrapper)
-		obs_data_release(wrapper);
 }
 
 vec2 OBSBasicPreview::GetMouseEventPos(QMouseEvent *event)
@@ -569,8 +565,6 @@ void OBSBasicPreview::mousePressEvent(QMouseEvent *event)
 	vec2_zero(&lastMoveOffset);
 
 	mousePos = startPos;
-	if (wrapper)
-		obs_data_release(wrapper);
 	wrapper =
 		obs_scene_save_transform_states(main->GetCurrentScene(), true);
 	changed = false;
@@ -707,17 +701,16 @@ void OBSBasicPreview::mouseReleaseEvent(QMouseEvent *event)
 		selectedItems.clear();
 	}
 	OBSBasic *main = reinterpret_cast<OBSBasic *>(App()->GetMainWindow());
-	obs_data_t *rwrapper =
+	OBSDataAutoRelease rwrapper =
 		obs_scene_save_transform_states(main->GetCurrentScene(), true);
 
 	auto undo_redo = [](const std::string &data) {
-		obs_data_t *dat = obs_data_create_from_json(data.c_str());
-		obs_source_t *source = obs_get_source_by_name(
+		OBSDataAutoRelease dat =
+			obs_data_create_from_json(data.c_str());
+		OBSSourceAutoRelease source = obs_get_source_by_name(
 			obs_data_get_string(dat, "scene_name"));
 		reinterpret_cast<OBSBasic *>(App()->GetMainWindow())
-			->SetCurrentScene(source, true);
-		obs_source_release(source);
-		obs_data_release(dat);
+			->SetCurrentScene(source.Get(), true);
 
 		obs_scene_load_transform_states(data.c_str());
 	};
@@ -733,13 +726,7 @@ void OBSBasicPreview::mouseReleaseEvent(QMouseEvent *event)
 				undo_redo, undo_redo, undo_data, redo_data);
 	}
 
-	if (wrapper)
-		obs_data_release(wrapper);
-
-	if (rwrapper)
-		obs_data_release(rwrapper);
-
-	wrapper = NULL;
+	wrapper = nullptr;
 }
 
 struct SelectedItemBounds {
@@ -1049,10 +1036,14 @@ static bool FindItemsInBox(obs_scene_t *scene, obs_sceneitem_t *item,
 	vec3 pos3;
 	vec3 pos3_;
 
-	float x1 = std::min(data->startPos.x, data->pos.x);
-	float x2 = std::max(data->startPos.x, data->pos.x);
-	float y1 = std::min(data->startPos.y, data->pos.y);
-	float y2 = std::max(data->startPos.y, data->pos.y);
+	vec2 pos_min, pos_max;
+	vec2_min(&pos_min, &data->startPos, &data->pos);
+	vec2_max(&pos_max, &data->startPos, &data->pos);
+
+	const float x1 = pos_min.x;
+	const float x2 = pos_max.x;
+	const float y1 = pos_min.y;
+	const float y2 = pos_max.y;
 
 	if (!SceneItemHasVideo(item))
 		return true;

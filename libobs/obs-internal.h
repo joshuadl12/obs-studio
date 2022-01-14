@@ -24,6 +24,7 @@
 #include "util/threading.h"
 #include "util/platform.h"
 #include "util/profiler.h"
+#include "util/task.h"
 #include "callback/signal.h"
 #include "callback/proc.h"
 
@@ -339,6 +340,9 @@ struct obs_core_audio {
 	DARRAY(struct audio_monitor *) monitors;
 	char *monitoring_device_name;
 	char *monitoring_device_id;
+
+	pthread_mutex_t task_mutex;
+	struct circlebuf tasks;
 };
 
 /* user sources, output channels, and displays */
@@ -433,6 +437,8 @@ struct obs_core {
 	struct obs_core_data data;
 	struct obs_core_hotkeys hotkeys;
 
+	os_task_queue_t *destruction_task_thread;
+
 	obs_task_handler_t ui_task_handler;
 };
 
@@ -509,6 +515,7 @@ extern void obs_context_data_free(struct obs_context_data *context);
 extern void obs_context_data_insert(struct obs_context_data *context,
 				    pthread_mutex_t *mutex, void *first);
 extern void obs_context_data_remove(struct obs_context_data *context);
+extern void obs_context_wait(struct obs_context_data *context);
 
 extern void obs_context_data_setname(struct obs_context_data *context,
 				     const char *name);
@@ -552,6 +559,12 @@ static inline bool obs_weak_ref_get_ref(struct obs_weak_ref *ref)
 	}
 
 	return false;
+}
+
+static inline bool obs_weak_ref_expired(struct obs_weak_ref *ref)
+{
+	long owners = os_atomic_load_long(&ref->refs);
+	return owners < 0;
 }
 
 /* ------------------------------------------------------------------------- */
@@ -1120,6 +1133,9 @@ struct obs_encoder {
 
 	const char *profile_encoder_encode_name;
 	char *last_error_message;
+
+	/* reconfigure encoder at next possible opportunity */
+	bool reconfigure_requested;
 };
 
 extern struct obs_encoder_info *find_encoder(const char *id);

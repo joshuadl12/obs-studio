@@ -28,8 +28,8 @@ if(UNIX)
 		else()
 			set(USE_XINPUT "0")
 		endif()
-		find_package(PulseAudio)
-		if (NOT "${PULSEAUDIO_LIBRARY}" STREQUAL "")
+		if (NOT DISABLE_PULSEAUDIO)
+			find_package(PulseAudio REQUIRED)
 			message(STATUS "Found PulseAudio - Audio Monitor enabled")
 			set(HAVE_PULSEAUDIO "1")
 		else()
@@ -114,13 +114,14 @@ if(WIN32)
 		util/windows/HRError.hpp
 		util/windows/WinHandle.hpp)
 	set(libobs_audio_monitoring_SOURCES
-		audio-monitoring/win32/wasapi-output.c
 		audio-monitoring/win32/wasapi-enum-devices.c
+		audio-monitoring/win32/wasapi-monitoring-available.c
+		audio-monitoring/win32/wasapi-output.c
 		)
 	set(libobs_audio_monitoring_HEADERS
 		audio-monitoring/win32/wasapi-output.h
 		)
-	set(libobs_PLATFORM_DEPS winmm psapi)
+	set(libobs_PLATFORM_DEPS Avrt winmm)
 	if(MSVC)
 		set(libobs_PLATFORM_DEPS
 		${libobs_PLATFORM_DEPS}
@@ -138,6 +139,7 @@ elseif(APPLE)
 		util/apple/cfstring-utils.h)
 	set(libobs_audio_monitoring_SOURCES
 		audio-monitoring/osx/coreaudio-enum-devices.c
+		audio-monitoring/osx/coreaudio-monitoring-available.c
 		audio-monitoring/osx/coreaudio-output.c
 		)
 	set(libobs_audio_monitoring_HEADERS
@@ -199,17 +201,20 @@ elseif(UNIX)
 
 	if(ENABLE_WAYLAND)
 		find_package(Wayland COMPONENTS Client REQUIRED)
+		find_package(Xkbcommon REQUIRED)
 
 		set(libobs_PLATFORM_SOURCES ${libobs_PLATFORM_SOURCES}
 			obs-nix-wayland.c)
 
 		include_directories(
-			${WAYLAND_CLIENT_INCLUDE_DIR})
+			${WAYLAND_CLIENT_INCLUDE_DIR}
+			${XKBCOMMON_INCLUDE_DIR})
 		add_definitions(
 			${WAYLAND_DEFINITIONS})
 		set(libobs_PLATFORM_DEPS
 			${libobs_PLATFORM_DEPS}
-			${WAYLAND_CLIENT_LIBRARIES})
+			${WAYLAND_CLIENT_LIBRARIES}
+			${XKBCOMMON_LIBRARIES})
 	endif()
 
 	if(HAVE_PULSEAUDIO)
@@ -219,6 +224,7 @@ elseif(UNIX)
 		set(libobs_audio_monitoring_SOURCES
 			audio-monitoring/pulse/pulseaudio-wrapper.c
 			audio-monitoring/pulse/pulseaudio-enum-devices.c
+			audio-monitoring/pulse/pulseaudio-monitoring-available.c
 			audio-monitoring/pulse/pulseaudio-output.c)
 	else()
 		set(libobs_audio_monitoring_SOURCES
@@ -375,6 +381,7 @@ set(libobs_util_SOURCES
 	util/bmem.c
 	util/config-file.c
 	util/lexer.c
+	util/task.c
 	util/dstr.c
 	util/utf8.c
 	util/crc32.c
@@ -405,10 +412,12 @@ set(libobs_util_HEADERS
 	util/serializer.h
 	util/config-file.h
 	util/lexer.h
+	util/task.h
 	util/platform.h
 	util/profiler.h
 	util/profiler.hpp
-	util/bitstream.h)
+	util/bitstream.h
+	util/util.hpp)
 
 set(libobs_libobs_SOURCES
 	${libobs_PLATFORM_SOURCES}
@@ -538,9 +547,6 @@ target_compile_options(libobs
 	PUBLIC
 	${ARCH_SIMD_FLAGS})
 
-target_compile_options(libobs
-	PUBLIC
-		"${THREADS_DEFINITIONS}")
 target_include_directories(libobs
 	PUBLIC
 		"$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
@@ -553,8 +559,7 @@ target_link_libraries(libobs
 		${OBS_JANSSON_IMPORT}
 		${FFMPEG_LIBRARIES}
 		${ZLIB_LIBRARIES}
-	PUBLIC
-		${THREADS_LIBRARIES})
+		Threads::Threads)
 
 install_obs_core(libobs EXPORT LibObs)
 install_obs_data(libobs data libobs)

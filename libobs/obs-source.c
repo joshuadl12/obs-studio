@@ -87,7 +87,9 @@ static const char *source_signals[] = {
 	"void update_properties(ptr source)",
 	"void update_flags(ptr source, int flags)",
 	"void audio_sync(ptr source, int out int offset)",
+	"void audio_balance(ptr source, in out float balance)",
 	"void audio_mixers(ptr source, in out int mixers)",
+	"void audio_monitoring(ptr source, int type)",
 	"void audio_activate(ptr source)",
 	"void audio_deactivate(ptr source)",
 	"void filter_add(ptr source, ptr filter)",
@@ -172,8 +174,6 @@ extern char *find_libobs_data_file(const char *file);
 /* internal initialization */
 static bool obs_source_init(struct obs_source *source)
 {
-	pthread_mutexattr_t attr;
-
 	source->user_volume = 1.0f;
 	source->volume = 1.0f;
 	source->sync_offset = 0;
@@ -186,11 +186,7 @@ static bool obs_source_init(struct obs_source *source)
 	pthread_mutex_init_value(&source->audio_cb_mutex);
 	pthread_mutex_init_value(&source->caption_cb_mutex);
 
-	if (pthread_mutexattr_init(&attr) != 0)
-		return false;
-	if (pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE) != 0)
-		return false;
-	if (pthread_mutex_init(&source->filter_mutex, &attr) != 0)
+	if (pthread_mutex_init_recursive(&source->filter_mutex) != 0)
 		return false;
 	if (pthread_mutex_init(&source->audio_buf_mutex, NULL) != 0)
 		return false;
@@ -611,11 +607,10 @@ static inline void obs_source_frame_decref(struct obs_source_frame *frame)
 
 static bool obs_source_filter_remove_refless(obs_source_t *source,
 					     obs_source_t *filter);
+static void obs_source_destroy_defer(struct obs_source *source);
 
 void obs_source_destroy(struct obs_source *source)
 {
-	size_t i;
-
 	if (!obs_source_valid(source, "obs_source_destroy"))
 		return;
 
@@ -639,15 +634,28 @@ void obs_source_destroy(struct obs_source *source)
 
 	obs_context_data_remove(&source->context);
 
-	blog(LOG_DEBUG, "%ssource '%s' destroyed",
-	     source->context.private ? "private " : "", source->context.name);
+	/* defer source destroy */
+	os_task_queue_queue_task(obs->destruction_task_thread,
+				 (os_task_t)obs_source_destroy_defer, source);
+}
+
+static void obs_source_destroy_defer(struct obs_source *source)
+{
+	size_t i;
 
 	obs_source_dosignal(source, "source_destroy", "destroy");
+
+	/* prevents the destruction of sources if destroy triggered inside of
+	 * a video tick call */
+	obs_context_wait(&source->context);
 
 	if (source->context.data) {
 		source->info.destroy(source->context.data);
 		source->context.data = NULL;
 	}
+
+	blog(LOG_DEBUG, "%ssource '%s' destroyed",
+	     source->context.private ? "private " : "", source->context.name);
 
 	audio_monitor_destroy(source->monitor);
 
@@ -780,6 +788,11 @@ obs_source_t *obs_weak_source_get_source(obs_weak_source_t *weak)
 	return NULL;
 }
 
+bool obs_weak_source_expired(obs_weak_source_t *weak)
+{
+	return weak ? obs_weak_ref_expired(&weak->ref) : true;
+}
+
 bool obs_weak_source_references_source(obs_weak_source_t *weak,
 				       obs_source_t *source)
 {
@@ -792,8 +805,12 @@ void obs_source_remove(obs_source_t *source)
 		return;
 
 	if (!source->removed) {
-		source->removed = true;
-		obs_source_dosignal(source, "source_remove", "remove");
+		obs_source_t *s = obs_source_get_ref(source);
+		if (s) {
+			s->removed = true;
+			obs_source_dosignal(s, "source_remove", "remove");
+			obs_source_release(s);
+		}
 	}
 }
 
@@ -2939,7 +2956,11 @@ obs_source_output_video_internal(obs_source_t *source,
 		return;
 
 	if (!frame) {
+		pthread_mutex_lock(&source->async_mutex);
 		source->async_active = false;
+		source->last_frame_ts = 0;
+		free_async_cache(source);
+		pthread_mutex_unlock(&source->async_mutex);
 		return;
 	}
 
@@ -3423,16 +3444,24 @@ static void process_audio(obs_source_t *source,
 }
 
 void obs_source_output_audio(obs_source_t *source,
-			     const struct obs_source_audio *audio)
+			     const struct obs_source_audio *audio_in)
 {
 	struct obs_audio_data *output;
 
 	if (!obs_source_valid(source, "obs_source_output_audio"))
 		return;
-	if (!obs_ptr_valid(audio, "obs_source_output_audio"))
+	if (!obs_ptr_valid(audio_in, "obs_source_output_audio"))
 		return;
 
-	process_audio(source, audio);
+	/* sets unused data pointers to NULL automatically because apparently
+	 * some filter plugins aren't checking the actual channel count, and
+	 * instead are checking to see whether the pointer is non-zero. */
+	struct obs_source_audio audio = *audio_in;
+	size_t channels = get_audio_planes(audio.format, audio.speakers);
+	for (size_t i = channels; i < MAX_AUDIO_CHANNELS; i++)
+		audio.data[i] = NULL;
+
+	process_audio(source, &audio);
 
 	pthread_mutex_lock(&source->filter_mutex);
 	output = filter_async_audio(source, &source->audio_data);
@@ -5018,6 +5047,8 @@ void obs_source_remove_audio_capture_callback(
 void obs_source_set_monitoring_type(obs_source_t *source,
 				    enum obs_monitoring_type type)
 {
+	struct calldata data;
+	uint8_t stack[128];
 	bool was_on;
 	bool now_on;
 
@@ -5025,6 +5056,13 @@ void obs_source_set_monitoring_type(obs_source_t *source,
 		return;
 	if (source->monitoring_type == type)
 		return;
+
+	calldata_init_fixed(&data, stack, sizeof(stack));
+	calldata_set_ptr(&data, "source", source);
+	calldata_set_int(&data, "type", type);
+
+	signal_handler_signal(source->context.signals, "audio_monitoring",
+			      &data);
 
 	was_on = source->monitoring_type != OBS_MONITORING_TYPE_NONE;
 	now_on = type != OBS_MONITORING_TYPE_NONE;
@@ -5117,10 +5155,19 @@ enum speaker_layout obs_source_get_speaker_layout(obs_source_t *source)
 
 void obs_source_set_balance_value(obs_source_t *source, float balance)
 {
-	if (!obs_source_valid(source, "obs_source_set_balance_value"))
-		return;
+	if (obs_source_valid(source, "obs_source_set_balance_value")) {
+		struct calldata data;
+		uint8_t stack[128];
 
-	source->balance = balance;
+		calldata_init_fixed(&data, stack, sizeof(stack));
+		calldata_set_ptr(&data, "source", source);
+		calldata_set_float(&data, "balance", balance);
+
+		signal_handler_signal(source->context.signals, "audio_balance",
+				      &data);
+
+		source->balance = (float)calldata_float(&data, "balance");
+	}
 }
 
 float obs_source_get_balance_value(const obs_source_t *source)
@@ -5385,4 +5432,15 @@ void obs_source_restore_filters(obs_source_t *source, obs_data_array_t *array)
 	}
 
 	da_free(cur_filters);
+}
+
+uint32_t obs_source_get_version(const obs_source_t *source)
+{
+	if (!obs_source_valid(source, "obs_source_get_version"))
+		return 0;
+
+	if (!source->info.version)
+		return 1;
+
+	return source->info.version;
 }

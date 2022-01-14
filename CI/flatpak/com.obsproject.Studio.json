@@ -1,7 +1,7 @@
 {
   "app-id": "com.obsproject.Studio",
   "runtime": "org.kde.Platform",
-  "runtime-version": "5.15",
+  "runtime-version": "5.15-21.08",
   "sdk": "org.kde.Sdk",
   "command": "obs",
   "finish-args": [
@@ -17,8 +17,27 @@
     "--talk-name=org.freedesktop.Flatpak",
     "--talk-name=org.freedesktop.Notifications",
     "--own-name=org.kde.StatusNotifierItem-2-2",
-    "--system-talk-name=org.freedesktop.Avahi"
+    "--system-talk-name=org.freedesktop.Avahi",
+    "--env=VST_PATH=/app/extensions/Plugins/lxvst"
   ],
+  "add-extensions": {
+    "com.obsproject.Studio.Plugin": {
+      "directory": "plugins",
+      "subdirectories": true,
+      "add-ld-path": "lib",
+      "merge-dirs": "lib/obs-plugins;share/obs/obs-plugins",
+      "no-autodownload": true,
+      "autodelete": true
+    },
+    "org.freedesktop.LinuxAudio.Plugins": {
+      "directory": "extensions/Plugins",
+      "version": "21.08",
+      "add-ld-path": "lib",
+      "merge-dirs": "lxvst",
+      "subdirectories": true,
+      "no-autodownload": true
+    }
+  },
   "cleanup": [
     "/lib/pkgconfig",
     "/share/man",
@@ -38,7 +57,7 @@
         {
           "type": "git",
           "url": "https://code.videolan.org/videolan/x264.git",
-          "commit": "b86ae3c66f51ac9eab5ab7ad09a9d62e67961b8a"
+          "commit": "66a5bc1bd1563d8227d5d18440b525a09bcf17ca"
         }
       ]
     },
@@ -58,8 +77,8 @@
       "sources": [
         {
           "type": "archive",
-          "url": "https://linuxtv.org/downloads/v4l-utils/v4l-utils-1.20.0.tar.bz2",
-          "sha256": "956118713f7ccb405c55c7088a6a2490c32d54300dd9a30d8d5008c28d3726f7"
+          "url": "https://linuxtv.org/downloads/v4l-utils/v4l-utils-1.22.0.tar.bz2",
+          "sha256": "1069e5d7909bcc563baeaadc3a5c496f0e658524c413cf7818816e37bfcea344"
         }
       ]
     },
@@ -97,8 +116,8 @@
         {
           "type": "git",
           "url": "https://github.com/Haivision/srt.git",
-          "tag": "v1.4.2",
-          "commit": "50b7af06f3a0a456c172b4cb3aceafa8a5cc0036"
+          "tag": "v1.4.4",
+          "commit": "8b32f3734ff6af7cc7b0fef272591cb80a2d1aae"
         }
       ]
     },
@@ -194,8 +213,8 @@
         {
           "type": "git",
           "url": "https://github.com/ARMmbed/mbedtls.git",
-          "commit": "1c54b5410fd48d6bcada97e30cac417c5c7eea67",
-          "tag": "v2.25.0"
+          "commit": "f71e2878084126737cc39083e1e15afc459bd93d",
+          "tag": "v2.27.0"
         }
       ]
     },
@@ -219,6 +238,58 @@
       ]
     },
     {
+      "name": "pipewire",
+      "buildsystem": "meson",
+      "config-opts": [
+        "-Daudiotestsrc=disabled",
+        "-Droc=disabled",
+        "-Dvideotestsrc=disabled",
+        "-Dvolume=disabled",
+        "-Dvulkan=disabled",
+        "-Ddocs=disabled",
+        "-Dman=disabled",
+        "-Dbluez5-codec-ldac=disabled",
+        "-Dbluez5-codec-aptx=disabled",
+        "-Dlibcamera=disabled",
+        "-Dudevrulesdir=/app/lib/udev/rules.d/",
+        "-Dsession-managers=[]"
+      ],
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://gitlab.freedesktop.org/pipewire/pipewire.git",
+          "tag": "0.3.40",
+          "commit": "7afd80052b7c49754a13c9ab49c368f95b60e0a7"
+        }
+      ]
+    },
+    {
+      "name": "ntv2",
+      "buildsystem": "cmake-ninja",
+      "builddir": true,
+      "config-opts": [
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DAJA_BUILD_OPENSOURCE=ON"
+      ],
+      "cleanup": [
+        "/include"
+      ],
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://github.com/aja-video/ntv2.git",
+          "commit": "abf17cc1e7aadd9f3e4972774a3aba2812c51b75"
+        },
+        {
+          "type": "shell",
+          "commands": [
+            "sed -i 's/Clang|GNU/GNU/g' cmake/CommonFlags.cmake",
+            "sed -i 's/Linux|Darwin/Linux/g' cmake/CommonFlags.cmake"
+          ]
+        }
+      ]
+    },
+    {
       "name": "cef",
       "buildsystem": "cmake-ninja",
       "no-make-install": true,
@@ -233,14 +304,13 @@
         "cp -R ./libcef_dll_wrapper/libcef_dll_wrapper.a /app/cef/libcef_dll_wrapper"
       ],
       "cleanup": [
-        "*.a",
-        "./*"
+        "*"
       ],
       "sources": [
         {
           "type": "archive",
-          "url": "https://cdn-fastly.obsproject.com/downloads/cef_binary_4280_linux64.tar.bz2",
-          "sha256": "d91c78349ecbfbfdfc18d5f882dc28b939028f1a631191c603b5d0d938ada972"
+          "url": "https://cdn-fastly.obsproject.com/downloads/cef_binary_4638_linux64.tar.bz2",
+          "sha256": "ea2b50304cfca48f1619db2e2fe35ca8a54bd14aed373179328a41038c7fb86f"
         }
       ]
     },
@@ -258,6 +328,20 @@
         "-DDISABLE_ALSA=ON",
         "-DENABLE_PULSEAUDIO=ON",
         "-DWITH_RTMPS=ON"
+      ],
+      "secret-opts": [
+        "-DRESTREAM_CLIENTID=$RESTREAM_CLIENTID",
+        "-DRESTREAM_HASH=$RESTREAM_HASH",
+        "-DTWITCH_CLIENTID=$TWITCH_CLIENTID",
+        "-DTWITCH_HASH=$TWITCH_HASH",
+        "-DYOUTUBE_CLIENTID=$YOUTUBE_CLIENTID",
+        "-DYOUTUBE_CLIENTID_HASH=$YOUTUBE_CLIENTID_HASH",
+        "-DYOUTUBE_SECRET=$YOUTUBE_SECRET",
+        "-DYOUTUBE_SECRET_HASH=$YOUTUBE_SECRET_HASH"
+      ],
+      "post-install": [
+        "install -d /app/plugins",
+        "install -d /app/extensions/Plugins"
       ],
       "sources": [
         {

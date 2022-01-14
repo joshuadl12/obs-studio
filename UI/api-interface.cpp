@@ -117,8 +117,8 @@ struct OBSStudioAPI : obs_frontend_callbacks {
 		struct obs_frontend_source_list *sources) override
 	{
 		for (int i = 0; i < main->ui->transitions->count(); i++) {
-			OBSSource tr = main->ui->transitions->itemData(i)
-					       .value<OBSSource>();
+			obs_source_t *tr = main->ui->transitions->itemData(i)
+						   .value<OBSSource>();
 
 			if (!tr)
 				continue;
@@ -390,21 +390,21 @@ struct OBSStudioAPI : obs_frontend_callbacks {
 
 	obs_output_t *obs_frontend_get_streaming_output(void) override
 	{
-		OBSOutput output = main->outputHandler->streamOutput;
+		OBSOutput output = main->outputHandler->streamOutput.Get();
 		obs_output_addref(output);
 		return output;
 	}
 
 	obs_output_t *obs_frontend_get_recording_output(void) override
 	{
-		OBSOutput out = main->outputHandler->fileOutput;
+		OBSOutput out = main->outputHandler->fileOutput.Get();
 		obs_output_addref(out);
 		return out;
 	}
 
 	obs_output_t *obs_frontend_get_replay_buffer_output(void) override
 	{
-		OBSOutput out = main->outputHandler->replayBuffer;
+		OBSOutput out = main->outputHandler->replayBuffer.Get();
 		obs_output_addref(out);
 		return out;
 	}
@@ -584,7 +584,7 @@ struct OBSStudioAPI : obs_frontend_callbacks {
 
 	obs_output_t *obs_frontend_get_virtualcam_output(void) override
 	{
-		OBSOutput output = main->outputHandler->virtualCam;
+		OBSOutput output = main->outputHandler->virtualCam.Get();
 		obs_output_addref(output);
 		return output;
 	}
@@ -605,6 +605,25 @@ struct OBSStudioAPI : obs_frontend_callbacks {
 	}
 
 	void obs_frontend_reset_video(void) override { main->ResetVideo(); }
+
+	void obs_frontend_open_source_properties(obs_source_t *source) override
+	{
+		QMetaObject::invokeMethod(main, "OpenProperties",
+					  Q_ARG(OBSSource, OBSSource(source)));
+	}
+
+	void obs_frontend_open_source_filters(obs_source_t *source) override
+	{
+		QMetaObject::invokeMethod(main, "OpenFilters",
+					  Q_ARG(OBSSource, OBSSource(source)));
+	}
+
+	char *obs_frontend_get_current_record_output_path(void) override
+	{
+		const char *recordOutputPath = main->GetCurrentOutputPath();
+
+		return bstrdup(recordOutputPath);
+	}
 
 	void on_load(obs_data_t *settings) override
 	{
@@ -632,7 +651,9 @@ struct OBSStudioAPI : obs_frontend_callbacks {
 
 	void on_event(enum obs_frontend_event event) override
 	{
-		if (main->disableSaving)
+		if (main->disableSaving &&
+		    event != OBS_FRONTEND_EVENT_SCENE_COLLECTION_CLEANUP &&
+		    event != OBS_FRONTEND_EVENT_EXIT)
 			return;
 
 		for (size_t i = callbacks.size(); i > 0; i--) {
