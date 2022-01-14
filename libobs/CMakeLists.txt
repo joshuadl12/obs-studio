@@ -253,7 +253,7 @@ if(OS_WINDOWS)
             audio-monitoring/win32/wasapi-output.c
             audio-monitoring/win32/wasapi-enum-devices.c
             audio-monitoring/win32/wasapi-output.h
-            audio-monitoring/win32/wasapi-monitoring-supported.c)
+            audio-monitoring/win32/wasapi-monitoring-available.c)
 
   target_compile_definitions(
     libobs PRIVATE UNICODE _UNICODE _CRT_SECURE_NO_WARNINGS
@@ -310,7 +310,7 @@ elseif(OS_MACOS)
             util/apple/cfstring-utils.h
             audio-monitoring/osx/coreaudio-enum-devices.c
             audio-monitoring/osx/coreaudio-output.c
-            audio-monitoring/osx/coreaudio-monitoring-supported.c
+            audio-monitoring/osx/coreaudio-monitoring-available.c
             audio-monitoring/osx/mac-helpers.h)
 
   set_source_files_properties(util/platform-cocoa.m obs-cocoa.m
@@ -359,7 +359,7 @@ elseif(OS_POSIX)
               audio-monitoring/pulse/pulseaudio-enum-devices.c
               audio-monitoring/pulse/pulseaudio-wrapper.c
               audio-monitoring/pulse/pulseaudio-wrapper.h
-              audio-monitoring/pulse/pulseaudio-monitoring-supported.c)
+              audio-monitoring/pulse/pulseaudio-monitoring-available.c)
 
     target_link_libraries(libobs PRIVATE ${PULSEAUDIO_LIBRARY})
   else()
