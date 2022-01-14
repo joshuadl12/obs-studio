@@ -22,6 +22,7 @@
 
 #include "portal.h"
 
+#include <util/darray.h>
 #include <util/dstr.h>
 
 #include <gio/gio.h>
@@ -37,6 +38,10 @@
 #include <spa/param/video/type-info.h>
 #include <spa/utils/result.h>
 
+#ifndef SPA_POD_PROP_FLAG_DONT_FIXATE
+#define SPA_POD_PROP_FLAG_DONT_FIXATE (1 << 4)
+#endif
+
 #define REQUEST_PATH "/org/freedesktop/portal/desktop/request/%s/obs%u"
 #define SESSION_PATH "/org/freedesktop/portal/desktop/session/%s/obs%u"
 
@@ -44,27 +49,16 @@
 	(sizeof(struct spa_meta_cursor) + sizeof(struct spa_meta_bitmap) + \
 	 width * height * 4)
 
-#define fourcc_code(a, b, c, d)                                \
-	((__u32)(a) | ((__u32)(b) << 8) | ((__u32)(c) << 16) | \
-	 ((__u32)(d) << 24))
-
-#define DRM_FORMAT_XRGB8888        \
-	fourcc_code('X', 'R', '2', \
-		    '4') /* [31:0] x:R:G:B 8:8:8:8 little endian */
-#define DRM_FORMAT_XBGR8888        \
-	fourcc_code('X', 'B', '2', \
-		    '4') /* [31:0] x:B:G:R 8:8:8:8 little endian */
-#define DRM_FORMAT_ARGB8888        \
-	fourcc_code('A', 'R', '2', \
-		    '4') /* [31:0] A:R:G:B 8:8:8:8 little endian */
-#define DRM_FORMAT_ABGR8888        \
-	fourcc_code('A', 'B', '2', \
-		    '4') /* [31:0] A:B:G:R 8:8:8:8 little endian */
-
 struct obs_pw_version {
 	int major;
 	int minor;
 	int micro;
+};
+
+struct format_info {
+	uint32_t spa_format;
+	uint32_t drm_format;
+	DARRAY(uint64_t) modifiers;
 };
 
 struct _obs_pipewire_data {
@@ -95,6 +89,8 @@ struct _obs_pipewire_data {
 
 	struct pw_stream *stream;
 	struct spa_hook stream_listener;
+	struct spa_source *reneg;
+
 	struct spa_video_info format;
 
 	struct {
@@ -115,6 +111,8 @@ struct _obs_pipewire_data {
 	enum obs_pw_capture_type capture_type;
 	struct obs_video_info video_info;
 	bool negotiated;
+
+	DARRAY(struct format_info) format_info;
 };
 
 struct dbus_call_data {
@@ -383,6 +381,229 @@ static void swap_texture_red_blue(gs_texture_t *texture)
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
+static inline struct spa_pod *build_format(struct spa_pod_builder *b,
+					   struct obs_video_info *ovi,
+					   uint32_t format, uint64_t *modifiers,
+					   size_t modifier_count)
+{
+	struct spa_pod_frame f[2];
+
+	/* Make an object of type SPA_TYPE_OBJECT_Format and id SPA_PARAM_EnumFormat.
+	 * The object type is important because it defines the properties that are
+	 * acceptable. The id gives more context about what the object is meant to
+	 * contain. In this case we enumerate supported formats. */
+	spa_pod_builder_push_object(b, &f[0], SPA_TYPE_OBJECT_Format,
+				    SPA_PARAM_EnumFormat);
+	/* add media type and media subtype properties */
+	spa_pod_builder_add(b, SPA_FORMAT_mediaType,
+			    SPA_POD_Id(SPA_MEDIA_TYPE_video), 0);
+	spa_pod_builder_add(b, SPA_FORMAT_mediaSubtype,
+			    SPA_POD_Id(SPA_MEDIA_SUBTYPE_raw), 0);
+
+	/* formats */
+	spa_pod_builder_add(b, SPA_FORMAT_VIDEO_format, SPA_POD_Id(format), 0);
+
+	/* modifier */
+	if (modifier_count > 0) {
+		/* build an enumeration of modifiers */
+		spa_pod_builder_prop(b, SPA_FORMAT_VIDEO_modifier,
+				     SPA_POD_PROP_FLAG_MANDATORY |
+					     SPA_POD_PROP_FLAG_DONT_FIXATE);
+		spa_pod_builder_push_choice(b, &f[1], SPA_CHOICE_Enum, 0);
+		/* modifiers from  an array */
+		for (uint32_t i = 0; i < modifier_count; i++) {
+			uint64_t modifier = modifiers[i];
+			spa_pod_builder_long(b, modifier);
+			if (i == 0)
+				spa_pod_builder_long(b, modifier);
+		}
+		spa_pod_builder_pop(b, &f[1]);
+	}
+	/* add size and framerate ranges */
+	spa_pod_builder_add(b, SPA_FORMAT_VIDEO_size,
+			    SPA_POD_CHOICE_RANGE_Rectangle(
+				    &SPA_RECTANGLE(320, 240), // Arbitrary
+				    &SPA_RECTANGLE(1, 1),
+				    &SPA_RECTANGLE(8192, 4320)),
+			    SPA_FORMAT_VIDEO_framerate,
+			    SPA_POD_CHOICE_RANGE_Fraction(
+				    &SPA_FRACTION(ovi->fps_num, ovi->fps_den),
+				    &SPA_FRACTION(0, 1), &SPA_FRACTION(360, 1)),
+			    0);
+	return spa_pod_builder_pop(b, &f[0]);
+}
+
+static bool build_format_params(obs_pipewire_data *obs_pw,
+				struct spa_pod_builder *pod_builder,
+				const struct spa_pod ***param_list,
+				uint32_t *n_params)
+{
+	uint32_t params_count = 0;
+
+	const struct spa_pod **params;
+	params =
+		bzalloc(2 * obs_pw->format_info.num * sizeof(struct spa_pod *));
+
+	if (!params) {
+		blog(LOG_ERROR,
+		     "[pipewire] Failed to allocate memory for param pointers");
+		return false;
+	}
+
+	if (!check_pw_version(&obs_pw->server_version, 0, 3, 33))
+		goto build_shm;
+
+	for (size_t i = 0; i < obs_pw->format_info.num; i++) {
+		if (obs_pw->format_info.array[i].modifiers.num == 0) {
+			continue;
+		}
+		params[params_count++] = build_format(
+			pod_builder, &obs_pw->video_info,
+			obs_pw->format_info.array[i].spa_format,
+			obs_pw->format_info.array[i].modifiers.array,
+			obs_pw->format_info.array[i].modifiers.num);
+	}
+
+build_shm:
+	for (size_t i = 0; i < obs_pw->format_info.num; i++) {
+		params[params_count++] = build_format(
+			pod_builder, &obs_pw->video_info,
+			obs_pw->format_info.array[i].spa_format, NULL, 0);
+	}
+	*param_list = params;
+	*n_params = params_count;
+	return true;
+}
+
+static bool drm_format_available(uint32_t drm_format, uint32_t *drm_formats,
+				 size_t n_drm_formats)
+{
+	for (size_t j = 0; j < n_drm_formats; j++) {
+		if (drm_format == drm_formats[j]) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static void init_format_info(obs_pipewire_data *obs_pw)
+{
+	da_init(obs_pw->format_info);
+
+	uint32_t formats[] = {
+		SPA_VIDEO_FORMAT_BGRA,
+		SPA_VIDEO_FORMAT_RGBA,
+		SPA_VIDEO_FORMAT_BGRx,
+		SPA_VIDEO_FORMAT_RGBx,
+	};
+
+	size_t n_formats = sizeof(formats) / sizeof(formats[0]);
+
+	obs_enter_graphics();
+
+	enum gs_dmabuf_flags dmabuf_flags;
+	uint32_t *drm_formats = NULL;
+	size_t n_drm_formats;
+
+	bool capabilities_queried = gs_query_dmabuf_capabilities(
+		&dmabuf_flags, &drm_formats, &n_drm_formats);
+
+	for (size_t i = 0; i < n_formats; i++) {
+		struct format_info *info;
+		uint32_t drm_format;
+
+		if (!spa_pixel_format_to_drm_format(formats[i], &drm_format))
+			continue;
+
+		if (!drm_format_available(drm_format, drm_formats,
+					  n_drm_formats))
+			continue;
+
+		info = da_push_back_new(obs_pw->format_info);
+		da_init(info->modifiers);
+		info->spa_format = formats[i];
+		info->drm_format = drm_format;
+
+		if (!capabilities_queried)
+			continue;
+
+		size_t n_modifiers;
+		uint64_t *modifiers = NULL;
+		if (gs_query_dmabuf_modifiers_for_format(drm_format, &modifiers,
+							 &n_modifiers)) {
+			da_push_back_array(info->modifiers, modifiers,
+					   n_modifiers);
+		}
+		bfree(modifiers);
+
+		if (dmabuf_flags &
+		    GS_DMABUF_FLAG_IMPLICIT_MODIFIERS_SUPPORTED) {
+			uint64_t modifier_implicit = DRM_FORMAT_MOD_INVALID;
+			da_push_back(info->modifiers, &modifier_implicit);
+		}
+	}
+	obs_leave_graphics();
+
+	bfree(drm_formats);
+}
+
+static void clear_format_info(obs_pipewire_data *obs_pw)
+{
+	for (size_t i = 0; i < obs_pw->format_info.num; i++) {
+		da_free(obs_pw->format_info.array[i].modifiers);
+	}
+	da_free(obs_pw->format_info);
+}
+
+static void remove_modifier_from_format(obs_pipewire_data *obs_pw,
+					uint32_t spa_format, uint64_t modifier)
+{
+	for (size_t i = 0; i < obs_pw->format_info.num; i++) {
+		if (obs_pw->format_info.array[i].spa_format != spa_format)
+			continue;
+
+		if (!check_pw_version(&obs_pw->server_version, 0, 3, 40)) {
+			da_erase_range(
+				obs_pw->format_info.array[i].modifiers, 0,
+				obs_pw->format_info.array[i].modifiers.num - 1);
+			continue;
+		}
+
+		int idx = da_find(obs_pw->format_info.array[i].modifiers,
+				  &modifier, 0);
+		while (idx != -1) {
+			da_erase(obs_pw->format_info.array[i].modifiers, idx);
+			idx = da_find(obs_pw->format_info.array[i].modifiers,
+				      &modifier, 0);
+		}
+	}
+}
+
+static void renegotiate_format(void *data, uint64_t expirations)
+{
+	UNUSED_PARAMETER(expirations);
+	obs_pipewire_data *obs_pw = (obs_pipewire_data *)data;
+	const struct spa_pod **params = NULL;
+
+	blog(LOG_DEBUG, "[pipewire] Renegotiating stream ...");
+
+	pw_thread_loop_lock(obs_pw->thread_loop);
+
+	uint8_t params_buffer[2048];
+	struct spa_pod_builder pod_builder =
+		SPA_POD_BUILDER_INIT(params_buffer, sizeof(params_buffer));
+	uint32_t n_params;
+	if (!build_format_params(obs_pw, &pod_builder, &params, &n_params)) {
+		teardown_pipewire(obs_pw);
+		pw_thread_loop_unlock(obs_pw->thread_loop);
+		return;
+	}
+
+	pw_stream_update_params(obs_pw->stream, params, n_params);
+	pw_thread_loop_unlock(obs_pw->thread_loop);
+	bfree(params);
+}
+
 /* ------------------------------------------------- */
 
 static void on_process_cb(void *user_data)
@@ -460,6 +681,15 @@ static void on_process_cb(void *user_data)
 			obs_pw->format.info.raw.size.height, drm_format,
 			GS_BGRX, planes, fds, strides, offsets,
 			modifierless ? NULL : modifiers);
+
+		if (obs_pw->texture == NULL) {
+			remove_modifier_from_format(
+				obs_pw, obs_pw->format.info.raw.format,
+				obs_pw->format.info.raw.modifier);
+			pw_loop_signal_event(
+				pw_thread_loop_get_loop(obs_pw->thread_loop),
+				obs_pw->reneg);
+		}
 	} else {
 		blog(LOG_DEBUG, "[pipewire] Buffer has memory texture");
 		enum gs_color_format obs_format;
@@ -572,7 +802,10 @@ static void on_param_changed_cb(void *user_data, uint32_t id,
 	spa_format_video_raw_parse(param, &obs_pw->format.info.raw);
 
 	buffer_types = 1 << SPA_DATA_MemPtr;
-	if (check_pw_version(&obs_pw->server_version, 0, 3, 24))
+	bool has_modifier =
+		spa_pod_find_prop(param, NULL, SPA_FORMAT_VIDEO_modifier) !=
+		NULL;
+	if (has_modifier || check_pw_version(&obs_pw->server_version, 0, 3, 24))
 		buffer_types |= 1 << SPA_DATA_DmaBuf;
 
 	blog(LOG_DEBUG, "[pipewire] Negotiated format:");
@@ -676,9 +909,9 @@ static const struct pw_core_events core_events = {
 static void play_pipewire_stream(obs_pipewire_data *obs_pw)
 {
 	struct spa_pod_builder pod_builder;
-	const struct spa_pod *params[1];
-	uint8_t params_buffer[1024];
-	struct obs_video_info ovi;
+	const struct spa_pod **params = NULL;
+	uint32_t n_params;
+	uint8_t params_buffer[2048];
 
 	obs_pw->thread_loop = pw_thread_loop_new("PipeWire thread loop", NULL);
 	obs_pw->context = pw_context_new(
@@ -704,6 +937,12 @@ static void play_pipewire_stream(obs_pipewire_data *obs_pw)
 	pw_core_add_listener(obs_pw->core, &obs_pw->core_listener, &core_events,
 			     obs_pw);
 
+	/* Signal to renegotiate */
+	obs_pw->reneg =
+		pw_loop_add_event(pw_thread_loop_get_loop(obs_pw->thread_loop),
+				  renegotiate_format, obs_pw);
+	blog(LOG_DEBUG, "[pipewire] registered event %p", obs_pw->reneg);
+
 	// Dispatch to receive the info core event
 	obs_pw->server_version_sync = pw_core_sync(obs_pw->core, PW_ID_CORE,
 						   obs_pw->server_version_sync);
@@ -723,33 +962,23 @@ static void play_pipewire_stream(obs_pipewire_data *obs_pw)
 	pod_builder =
 		SPA_POD_BUILDER_INIT(params_buffer, sizeof(params_buffer));
 
-	obs_get_video_info(&ovi);
-	params[0] = spa_pod_builder_add_object(
-		&pod_builder, SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat,
-		SPA_FORMAT_mediaType, SPA_POD_Id(SPA_MEDIA_TYPE_video),
-		SPA_FORMAT_mediaSubtype, SPA_POD_Id(SPA_MEDIA_SUBTYPE_raw),
-		SPA_FORMAT_VIDEO_format,
-		SPA_POD_CHOICE_ENUM_Id(
-			4, SPA_VIDEO_FORMAT_BGRA, SPA_VIDEO_FORMAT_RGBA,
-			SPA_VIDEO_FORMAT_BGRx, SPA_VIDEO_FORMAT_RGBx),
-		SPA_FORMAT_VIDEO_size,
-		SPA_POD_CHOICE_RANGE_Rectangle(
-			&SPA_RECTANGLE(320, 240), // Arbitrary
-			&SPA_RECTANGLE(1, 1), &SPA_RECTANGLE(8192, 4320)),
-		SPA_FORMAT_VIDEO_framerate,
-		SPA_POD_CHOICE_RANGE_Fraction(
-			&SPA_FRACTION(ovi.fps_num, ovi.fps_den),
-			&SPA_FRACTION(0, 1), &SPA_FRACTION(360, 1)));
-	obs_pw->video_info = ovi;
+	obs_get_video_info(&obs_pw->video_info);
+
+	if (!build_format_params(obs_pw, &pod_builder, &params, &n_params)) {
+		pw_thread_loop_unlock(obs_pw->thread_loop);
+		teardown_pipewire(obs_pw);
+		return;
+	}
 
 	pw_stream_connect(
 		obs_pw->stream, PW_DIRECTION_INPUT, obs_pw->pipewire_node,
 		PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS, params,
-		1);
+		n_params);
 
 	blog(LOG_INFO, "[pipewire] playing stream…");
 
 	pw_thread_loop_unlock(obs_pw->thread_loop);
+	bfree(params);
 }
 
 /* ------------------------------------------------- */
@@ -1210,6 +1439,8 @@ void *obs_pipewire_create(enum obs_pw_capture_type capture_type,
 	if (!init_obs_pipewire(obs_pw))
 		g_clear_pointer(&obs_pw, bfree);
 
+	init_format_info(obs_pw);
+
 	return obs_pw;
 }
 
@@ -1222,6 +1453,7 @@ void obs_pipewire_destroy(obs_pipewire_data *obs_pw)
 	destroy_session(obs_pw);
 
 	g_clear_pointer(&obs_pw->restore_token, bfree);
+	clear_format_info(obs_pw);
 
 	bfree(obs_pw);
 }

@@ -238,6 +238,58 @@
       ]
     },
     {
+      "name": "pipewire",
+      "buildsystem": "meson",
+      "config-opts": [
+        "-Daudiotestsrc=disabled",
+        "-Droc=disabled",
+        "-Dvideotestsrc=disabled",
+        "-Dvolume=disabled",
+        "-Dvulkan=disabled",
+        "-Ddocs=disabled",
+        "-Dman=disabled",
+        "-Dbluez5-codec-ldac=disabled",
+        "-Dbluez5-codec-aptx=disabled",
+        "-Dlibcamera=disabled",
+        "-Dudevrulesdir=/app/lib/udev/rules.d/",
+        "-Dsession-managers=[]"
+      ],
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://gitlab.freedesktop.org/pipewire/pipewire.git",
+          "tag": "0.3.40",
+          "commit": "7afd80052b7c49754a13c9ab49c368f95b60e0a7"
+        }
+      ]
+    },
+    {
+      "name": "ntv2",
+      "buildsystem": "cmake-ninja",
+      "builddir": true,
+      "config-opts": [
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DAJA_BUILD_OPENSOURCE=ON"
+      ],
+      "cleanup": [
+        "/include"
+      ],
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://github.com/aja-video/ntv2.git",
+          "commit": "abf17cc1e7aadd9f3e4972774a3aba2812c51b75"
+        },
+        {
+          "type": "shell",
+          "commands": [
+            "sed -i 's/Clang|GNU/GNU/g' cmake/CommonFlags.cmake",
+            "sed -i 's/Linux|Darwin/Linux/g' cmake/CommonFlags.cmake"
+          ]
+        }
+      ]
+    },
+    {
       "name": "cef",
       "buildsystem": "cmake-ninja",
       "no-make-install": true,
@@ -252,14 +304,13 @@
         "cp -R ./libcef_dll_wrapper/libcef_dll_wrapper.a /app/cef/libcef_dll_wrapper"
       ],
       "cleanup": [
-        "*.a",
-        "./*"
+        "*"
       ],
       "sources": [
         {
           "type": "archive",
           "url": "https://cdn-fastly.obsproject.com/downloads/cef_binary_4638_linux64.tar.bz2",
-          "sha256": "3c7707b13ca99c220e1650381f3d301c016f5c6ed6f478b83223645031fb13b9"
+          "sha256": "ea2b50304cfca48f1619db2e2fe35ca8a54bd14aed373179328a41038c7fb86f"
         }
       ]
     },
