@@ -266,33 +266,7 @@ if(TARGET OBS::browser-panels)
                       INTERFACE_INCLUDE_DIRECTORIES)
   target_include_directories(obs PRIVATE ${_PANEL_INCLUDE_DIRECTORY})
 
-if(BROWSER_AVAILABLE_INTERNAL)
-	list(APPEND obs_PLATFORM_SOURCES
-		window-dock-browser.cpp
-		window-extra-browsers.cpp
-		)
-	list(APPEND obs_PLATFORM_HEADERS
-		window-dock-browser.hpp
-		window-extra-browsers.hpp
-		)
-
-	if(TWITCH_ENABLED)
-		list(APPEND obs_PLATFORM_SOURCES
-			auth-twitch.cpp
-			)
-		list(APPEND obs_PLATFORM_HEADERS
-			auth-twitch.hpp
-			)
-	endif()
-
-	if(RESTREAM_ENABLED)
-		list(APPEND obs_PLATFORM_SOURCES
-			auth-restream.cpp
-			)
-		list(APPEND obs_PLATFORM_HEADERS
-			auth-restream.hpp
-			)
-	endif()
+  target_compile_definitions(obs PRIVATE BROWSER_AVAILABLE)
 
   target_sources(
     obs PRIVATE window-dock-browser.cpp window-dock-browser.hpp
