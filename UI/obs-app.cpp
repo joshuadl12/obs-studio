@@ -245,7 +245,7 @@ string CurrentTimeString()
 	auto now = system_clock::to_time_t(tp);
 	tstruct = *localtime(&now);
 
-	size_t written = strftime(buf, sizeof(buf), "%X", &tstruct);
+	size_t written = strftime(buf, sizeof(buf), "%T", &tstruct);
 	if (ratio_less<system_clock::period, seconds::period>::value &&
 	    written && (sizeof(buf) - written) > 5) {
 		auto tp_secs = time_point_cast<seconds>(tp);
@@ -2120,6 +2120,12 @@ static int run_program(fstream &logFile, int argc, char *argv[])
 			mb.exec();
 			return 0;
 		}
+#endif
+
+#ifdef __APPLE__
+		bool rosettaTranslated = ProcessIsRosettaTranslated();
+		blog(LOG_INFO, "Rosetta translation used: %s",
+		     rosettaTranslated ? "true" : "false");
 #endif
 
 		if (!created_log) {

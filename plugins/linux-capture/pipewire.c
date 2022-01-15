@@ -312,63 +312,63 @@ static inline bool has_effective_crop(obs_pipewire_data *obs_pw)
 		obs_pw->crop.height < obs_pw->format.info.raw.size.height);
 }
 
-static bool spa_pixel_format_to_drm_format(uint32_t spa_format,
-					   uint32_t *out_format)
+static const struct {
+	uint32_t spa_format;
+	uint32_t drm_format;
+	enum gs_color_format gs_format;
+	bool swap_red_blue;
+	const char *pretty_name;
+} supported_formats[] = {
+	{
+		SPA_VIDEO_FORMAT_BGRA,
+		DRM_FORMAT_ARGB8888,
+		GS_BGRA,
+		false,
+		"ARGB8888",
+	},
+	{
+		SPA_VIDEO_FORMAT_RGBA,
+		DRM_FORMAT_ABGR8888,
+		GS_RGBA,
+		false,
+		"ABGR8888",
+	},
+	{
+		SPA_VIDEO_FORMAT_BGRx,
+		DRM_FORMAT_XRGB8888,
+		GS_BGRX,
+		false,
+		"XRGB8888",
+	},
+	{
+		SPA_VIDEO_FORMAT_RGBx,
+		DRM_FORMAT_XBGR8888,
+		GS_BGRX,
+		true,
+		"XBGR8888",
+	},
+};
+
+#define N_SUPPORTED_FORMATS \
+	(sizeof(supported_formats) / sizeof(supported_formats[0]))
+
+static bool lookup_format_info_from_spa_format(
+	uint32_t spa_format, uint32_t *out_drm_format,
+	enum gs_color_format *out_gs_format, bool *out_swap_red_blue)
 {
-	switch (spa_format) {
-	case SPA_VIDEO_FORMAT_RGBA:
-		*out_format = DRM_FORMAT_ABGR8888;
-		break;
+	for (size_t i = 0; i < N_SUPPORTED_FORMATS; i++) {
+		if (supported_formats[i].spa_format != spa_format)
+			continue;
 
-	case SPA_VIDEO_FORMAT_RGBx:
-		*out_format = DRM_FORMAT_XBGR8888;
-		break;
-
-	case SPA_VIDEO_FORMAT_BGRA:
-		*out_format = DRM_FORMAT_ARGB8888;
-		break;
-
-	case SPA_VIDEO_FORMAT_BGRx:
-		*out_format = DRM_FORMAT_XRGB8888;
-		break;
-
-	default:
-		return false;
+		if (out_drm_format)
+			*out_drm_format = supported_formats[i].drm_format;
+		if (out_gs_format)
+			*out_gs_format = supported_formats[i].gs_format;
+		if (out_swap_red_blue)
+			*out_swap_red_blue = supported_formats[i].swap_red_blue;
+		return true;
 	}
-
-	return true;
-}
-
-static bool spa_pixel_format_to_obs_format(uint32_t spa_format,
-					   enum gs_color_format *out_format,
-					   bool *swap_red_blue)
-{
-	switch (spa_format) {
-	case SPA_VIDEO_FORMAT_RGBA:
-		*out_format = GS_RGBA;
-		*swap_red_blue = false;
-		break;
-
-	case SPA_VIDEO_FORMAT_RGBx:
-		*out_format = GS_BGRX;
-		*swap_red_blue = true;
-		break;
-
-	case SPA_VIDEO_FORMAT_BGRA:
-		*out_format = GS_BGRA;
-		*swap_red_blue = false;
-		break;
-
-	case SPA_VIDEO_FORMAT_BGRx:
-		*out_format = GS_BGRX;
-		*swap_red_blue = false;
-		break;
-
-	default:
-		return false;
-	}
-
-	return true;
+	return false;
 }
 
 static void swap_texture_red_blue(gs_texture_t *texture)
@@ -386,13 +386,13 @@ static inline struct spa_pod *build_format(struct spa_pod_builder *b,
 					   uint32_t format, uint64_t *modifiers,
 					   size_t modifier_count)
 {
-	struct spa_pod_frame f[2];
+	struct spa_pod_frame format_frame;
 
 	/* Make an object of type SPA_TYPE_OBJECT_Format and id SPA_PARAM_EnumFormat.
 	 * The object type is important because it defines the properties that are
 	 * acceptable. The id gives more context about what the object is meant to
 	 * contain. In this case we enumerate supported formats. */
-	spa_pod_builder_push_object(b, &f[0], SPA_TYPE_OBJECT_Format,
+	spa_pod_builder_push_object(b, &format_frame, SPA_TYPE_OBJECT_Format,
 				    SPA_PARAM_EnumFormat);
 	/* add media type and media subtype properties */
 	spa_pod_builder_add(b, SPA_FORMAT_mediaType,
@@ -405,19 +405,26 @@ static inline struct spa_pod *build_format(struct spa_pod_builder *b,
 
 	/* modifier */
 	if (modifier_count > 0) {
+		struct spa_pod_frame modifier_frame;
+
 		/* build an enumeration of modifiers */
 		spa_pod_builder_prop(b, SPA_FORMAT_VIDEO_modifier,
 				     SPA_POD_PROP_FLAG_MANDATORY |
 					     SPA_POD_PROP_FLAG_DONT_FIXATE);
-		spa_pod_builder_push_choice(b, &f[1], SPA_CHOICE_Enum, 0);
+
+		spa_pod_builder_push_choice(b, &modifier_frame, SPA_CHOICE_Enum,
+					    0);
+
+		/* The first element of choice pods is the preferred value. Here
+		 * we arbitrarily pick the first modifier as the preferred one.
+		 */
+		spa_pod_builder_long(b, modifiers[0]);
+
 		/* modifiers from  an array */
-		for (uint32_t i = 0; i < modifier_count; i++) {
-			uint64_t modifier = modifiers[i];
-			spa_pod_builder_long(b, modifier);
-			if (i == 0)
-				spa_pod_builder_long(b, modifier);
-		}
-		spa_pod_builder_pop(b, &f[1]);
+		for (uint32_t i = 0; i < modifier_count; i++)
+			spa_pod_builder_long(b, modifiers[i]);
+
+		spa_pod_builder_pop(b, &modifier_frame);
 	}
 	/* add size and framerate ranges */
 	spa_pod_builder_add(b, SPA_FORMAT_VIDEO_size,
@@ -430,7 +437,7 @@ static inline struct spa_pod *build_format(struct spa_pod_builder *b,
 				    &SPA_FRACTION(ovi->fps_num, ovi->fps_den),
 				    &SPA_FRACTION(0, 1), &SPA_FRACTION(360, 1)),
 			    0);
-	return spa_pod_builder_pop(b, &f[0]);
+	return spa_pod_builder_pop(b, &format_frame);
 }
 
 static bool build_format_params(obs_pipewire_data *obs_pw,
@@ -490,15 +497,6 @@ static void init_format_info(obs_pipewire_data *obs_pw)
 {
 	da_init(obs_pw->format_info);
 
-	uint32_t formats[] = {
-		SPA_VIDEO_FORMAT_BGRA,
-		SPA_VIDEO_FORMAT_RGBA,
-		SPA_VIDEO_FORMAT_BGRx,
-		SPA_VIDEO_FORMAT_RGBx,
-	};
-
-	size_t n_formats = sizeof(formats) / sizeof(formats[0]);
-
 	obs_enter_graphics();
 
 	enum gs_dmabuf_flags dmabuf_flags;
@@ -508,29 +506,26 @@ static void init_format_info(obs_pipewire_data *obs_pw)
 	bool capabilities_queried = gs_query_dmabuf_capabilities(
 		&dmabuf_flags, &drm_formats, &n_drm_formats);
 
-	for (size_t i = 0; i < n_formats; i++) {
+	for (size_t i = 0; i < N_SUPPORTED_FORMATS; i++) {
 		struct format_info *info;
-		uint32_t drm_format;
 
-		if (!spa_pixel_format_to_drm_format(formats[i], &drm_format))
-			continue;
-
-		if (!drm_format_available(drm_format, drm_formats,
-					  n_drm_formats))
+		if (!drm_format_available(supported_formats[i].drm_format,
+					  drm_formats, n_drm_formats))
 			continue;
 
 		info = da_push_back_new(obs_pw->format_info);
 		da_init(info->modifiers);
-		info->spa_format = formats[i];
-		info->drm_format = drm_format;
+		info->spa_format = supported_formats[i].spa_format;
+		info->drm_format = supported_formats[i].drm_format;
 
 		if (!capabilities_queried)
 			continue;
 
 		size_t n_modifiers;
 		uint64_t *modifiers = NULL;
-		if (gs_query_dmabuf_modifiers_for_format(drm_format, &modifiers,
-							 &n_modifiers)) {
+		if (gs_query_dmabuf_modifiers_for_format(
+			    supported_formats[i].drm_format, &modifiers,
+			    &n_modifiers)) {
 			da_push_back_array(info->modifiers, modifiers,
 					   n_modifiers);
 		}
@@ -648,7 +643,7 @@ static void on_process_cb(void *user_data)
 		uint32_t strides[planes];
 		uint64_t modifiers[planes];
 		int fds[planes];
-		bool modifierless; // DMA-BUF without explicit modifier
+		bool use_modifiers;
 
 		blog(LOG_DEBUG,
 		     "[pipewire] DMA-BUF info: fd:%ld, stride:%d, offset:%u, size:%dx%d",
@@ -657,8 +652,9 @@ static void on_process_cb(void *user_data)
 		     obs_pw->format.info.raw.size.width,
 		     obs_pw->format.info.raw.size.height);
 
-		if (!spa_pixel_format_to_drm_format(
-			    obs_pw->format.info.raw.format, &drm_format)) {
+		if (!lookup_format_info_from_spa_format(
+			    obs_pw->format.info.raw.format, &drm_format, NULL,
+			    NULL)) {
 			blog(LOG_ERROR,
 			     "[pipewire] unsupported DMA buffer format: %d",
 			     obs_pw->format.info.raw.format);
@@ -674,13 +670,13 @@ static void on_process_cb(void *user_data)
 
 		g_clear_pointer(&obs_pw->texture, gs_texture_destroy);
 
-		modifierless = obs_pw->format.info.raw.modifier ==
-			       DRM_FORMAT_MOD_INVALID;
+		use_modifiers = obs_pw->format.info.raw.modifier !=
+				DRM_FORMAT_MOD_INVALID;
 		obs_pw->texture = gs_texture_create_from_dmabuf(
 			obs_pw->format.info.raw.size.width,
 			obs_pw->format.info.raw.size.height, drm_format,
 			GS_BGRX, planes, fds, strides, offsets,
-			modifierless ? NULL : modifiers);
+			use_modifiers ? modifiers : NULL);
 
 		if (obs_pw->texture == NULL) {
 			remove_modifier_from_format(
@@ -692,10 +688,10 @@ static void on_process_cb(void *user_data)
 		}
 	} else {
 		blog(LOG_DEBUG, "[pipewire] Buffer has memory texture");
-		enum gs_color_format obs_format;
+		enum gs_color_format gs_format;
 
-		if (!spa_pixel_format_to_obs_format(
-			    obs_pw->format.info.raw.format, &obs_format,
+		if (!lookup_format_info_from_spa_format(
+			    obs_pw->format.info.raw.format, NULL, &gs_format,
 			    &swap_red_blue)) {
 			blog(LOG_ERROR,
 			     "[pipewire] unsupported DMA buffer format: %d",
@@ -706,7 +702,7 @@ static void on_process_cb(void *user_data)
 		g_clear_pointer(&obs_pw->texture, gs_texture_destroy);
 		obs_pw->texture = gs_texture_create(
 			obs_pw->format.info.raw.size.width,
-			obs_pw->format.info.raw.size.height, obs_format, 1,
+			obs_pw->format.info.raw.size.height, gs_format, 1,
 			(const uint8_t **)&buffer->datas[0].data, GS_DYNAMIC);
 	}
 
@@ -739,7 +735,7 @@ read_metadata:
 	obs_pw->cursor.valid = cursor && spa_meta_cursor_is_valid(cursor);
 	if (obs_pw->cursor.visible && obs_pw->cursor.valid) {
 		struct spa_meta_bitmap *bitmap = NULL;
-		enum gs_color_format format;
+		enum gs_color_format gs_format;
 
 		if (cursor->bitmap_offset)
 			bitmap = SPA_MEMBER(cursor, cursor->bitmap_offset,
@@ -747,8 +743,8 @@ read_metadata:
 
 		if (bitmap && bitmap->size.width > 0 &&
 		    bitmap->size.height > 0 &&
-		    spa_pixel_format_to_obs_format(bitmap->format, &format,
-						   &swap_red_blue)) {
+		    lookup_format_info_from_spa_format(
+			    bitmap->format, NULL, &gs_format, &swap_red_blue)) {
 			const uint8_t *bitmap_data;
 
 			bitmap_data =
@@ -762,7 +758,7 @@ read_metadata:
 					gs_texture_destroy);
 			obs_pw->cursor.texture = gs_texture_create(
 				obs_pw->cursor.width, obs_pw->cursor.height,
-				format, 1, &bitmap_data, GS_DYNAMIC);
+				gs_format, 1, &bitmap_data, GS_DYNAMIC);
 
 			if (swap_red_blue)
 				swap_texture_red_blue(obs_pw->cursor.texture);

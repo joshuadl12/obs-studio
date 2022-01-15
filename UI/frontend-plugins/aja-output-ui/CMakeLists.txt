@@ -18,42 +18,63 @@ if(OS_POSIX AND NOT OS_MACOS)
   target_link_libraries(aja-output-ui PRIVATE Qt::X11Extras)
 endif()
 
-set_target_properties(
-  aja-output-ui
-  PROPERTIES AUTOMOC ON
-             AUTOUIC ON
-             AUTORCC ON
-             AUTOUIC_SEARCH_PATHS "forms")
+set(aja-output-ui_HEADERS
+	${aja-output-ui_HEADERS}
+	../../qt-wrappers.hpp
+	../../properties-view.hpp
+	../../properties-view.moc.hpp
+	../../vertical-scroll-area.hpp
+	../../double-slider.hpp
+	../../slider-ignorewheel.hpp
+	../../combobox-ignorewheel.hpp
+	../../spinbox-ignorewheel.hpp
+	AJAOutputUI.h
+	aja-ui-main.h
+	../../../plugins/aja/aja-card-manager.hpp
+	../../../plugins/aja/aja-common.hpp
+	../../../plugins/aja/aja-enums.hpp
+	../../../plugins/aja/aja-presets.hpp
+	../../../plugins/aja/aja-props.hpp
+	../../../plugins/aja/aja-routing.hpp
+	../../../plugins/aja/aja-ui-props.hpp
+	../../../plugins/aja/aja-vpid-data.hpp
+	../../../plugins/aja/aja-widget-io.hpp
+	)
 
-target_sources(
-  aja-output-ui
-  PRIVATE AJAOutputUI.h
-          AJAOutputUI.cpp
-          aja-ui-main.cpp
-          aja-ui-main.h
-          ${CMAKE_SOURCE_DIR}/plugins/aja/aja-ui-props.hpp
-          ${CMAKE_SOURCE_DIR}/plugins/aja/aja-enums.hpp
-          ${CMAKE_SOURCE_DIR}/UI/combobox-ignorewheel.cpp
-          ${CMAKE_SOURCE_DIR}/UI/combobox-ignorewheel.hpp
-          ${CMAKE_SOURCE_DIR}/UI/double-slider.cpp
-          ${CMAKE_SOURCE_DIR}/UI/double-slider.hpp
-          ${CMAKE_SOURCE_DIR}/UI/properties-view.hpp
-          ${CMAKE_SOURCE_DIR}/UI/properties-view.cpp
-          ${CMAKE_SOURCE_DIR}/UI/properties-view.moc.hpp
-          ${CMAKE_SOURCE_DIR}/UI/qt-wrappers.cpp
-          ${CMAKE_SOURCE_DIR}/UI/qt-wrappers.hpp
-          ${CMAKE_SOURCE_DIR}/UI/spinbox-ignorewheel.cpp
-          ${CMAKE_SOURCE_DIR}/UI/spinbox-ignorewheel.hpp
-          ${CMAKE_SOURCE_DIR}/UI/slider-ignorewheel.cpp
-          ${CMAKE_SOURCE_DIR}/UI/slider-ignorewheel.hpp
-          ${CMAKE_SOURCE_DIR}/UI/vertical-scroll-area.cpp
-          ${CMAKE_SOURCE_DIR}/UI/vertical-scroll-area.hpp)
+set(aja-output-ui_SOURCES
+	${aja-output-ui_SOURCES}
+	../../qt-wrappers.cpp
+	../../properties-view.cpp
+	../../vertical-scroll-area.cpp
+	../../double-slider.cpp
+	../../slider-ignorewheel.cpp
+	../../combobox-ignorewheel.cpp
+	../../spinbox-ignorewheel.cpp
+	AJAOutputUI.cpp
+	aja-ui-main.cpp
+	../../../plugins/aja/aja-card-manager.cpp
+	../../../plugins/aja/aja-common.cpp
+	../../../plugins/aja/aja-presets.cpp
+	../../../plugins/aja/aja-props.cpp
+	../../../plugins/aja/aja-routing.cpp
+	../../../plugins/aja/aja-vpid-data.cpp
+	../../../plugins/aja/aja-widget-io.cpp
+	)
 
-target_link_libraries(aja-output-ui PRIVATE OBS::libobs OBS::frontend-api
-                                            Qt::Widgets AJA::LibAJANTV2)
+set(aja-output-ui_UI
+	${aja-output-ui_UI}
+	forms/output.ui)
 
-if(TARGET AJA::LibAJANTV2_Debug)
-  target_link_libraries(aja-output-ui PRIVATE debug AJA::LibAJANTV2_Debug)
+if(WIN32)
+	set(MODULE_DESCRIPTION "OBS AJA Output UI")
+	configure_file(${CMAKE_SOURCE_DIR}/cmake/winrc/obs-module.rc.in aja-output-ui.rc)
+	list(APPEND aja-output-ui_SOURCES
+		aja-output-ui.rc)
+endif()
+
+if(APPLE)
+	set(aja-output-ui_PLATFORM_LIBS
+		${COCOA})
 endif()
 
 if(OS_MACOS)

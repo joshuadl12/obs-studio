@@ -30,6 +30,11 @@ OBSProjector::OBSProjector(QWidget *widget, obs_source_t *source_, int monitor,
 	if (isAlwaysOnTop)
 		setWindowFlags(Qt::WindowStaysOnTopHint);
 
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__DragonFly__)
+	// Prevents resizing of projector windows
+	setAttribute(Qt::WA_PaintOnScreen, false);
+#endif
+
 	type = type_;
 #ifdef __APPLE__
 	setWindowIcon(
@@ -191,11 +196,8 @@ static inline uint32_t labelOffset(obs_source_t *label, uint32_t cx)
 {
 	uint32_t w = obs_source_get_width(label);
 
-	int n; // Number of scenes per row
+	int n; // Twice of scale factor of preview and program scenes
 	switch (multiviewLayout) {
-	case MultiviewLayout::HORIZONTAL_TOP_18_SCENES:
-		n = 6;
-		break;
 	case MultiviewLayout::HORIZONTAL_TOP_24_SCENES:
 		n = 6;
 		break;

@@ -95,8 +95,8 @@
         {
           "type": "git",
           "url": "https://git.videolan.org/git/ffmpeg/nv-codec-headers.git",
-          "commit": "7a81595786463d1c7efcb03aa85def69fc2cad41",
-          "tag": "n11.0.10.0"
+          "tag": "n11.1.5.0",
+          "commit": "b641a195edbe3ac9788e681e22c2e2fad8aacddb"
         }
       ]
     },
@@ -122,6 +122,100 @@
       ]
     },
     {
+      "name": "mbedtls",
+      "buildsystem": "cmake-ninja",
+      "builddir": true,
+      "config-opts": [
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
+        "-DUSE_SHARED_MBEDTLS_LIBRARY=ON",
+        "-DUSE_STATIC_MBEDTLS_LIBRARY=OFF",
+        "-DENABLE_TESTING=OFF",
+        "-DENABLE_PROGRAMS=OFF"
+      ],
+      "cleanup": [
+        "/include"
+      ],
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://github.com/ARMmbed/mbedtls.git",
+          "commit": "f71e2878084126737cc39083e1e15afc459bd93d",
+          "tag": "v2.27.0"
+        }
+      ]
+    },
+    {
+      "name": "librist",
+      "buildsystem":"meson",
+      "builddir": true,
+      "config-opts": [
+        "-Duse_mbedtls=true",
+        "-Dtest=false",
+        "-Dbuilt_tools=false",
+        "-Dbuiltin_cjson=true"
+      ],
+      "cleanup": [
+        "/include"
+      ],
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://code.videolan.org/rist/librist.git",
+          "commit": "0b1aaf995c4cad83d562ec7887180cc6ee132c84"
+        }
+      ]
+    },
+    {
+      "name": "aom",
+      "buildsystem": "cmake-ninja",
+      "builddir": true,
+      "config-opts": [
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DBUILD_SHARED_LIBS=ON",
+        "-DENABLE_DOCS=OFF",
+        "-DENABLE_EXAMPLES=OFF",
+        "-DENABLE_TESTDATA=OFF",
+        "-DENABLE_TESTS=OFF",
+        "-DENABLE_TOOLS=OFF "
+      ],
+      "cleanup": [
+        "/include"
+      ],
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://aomedia.googlesource.com/aom.git",
+          "tag": "v3.2.0",
+          "commit": "287164de79516c25c8c84fd544f67752c170082a"
+        }
+      ]
+    },
+    {
+      "name": "svt-av1",
+      "buildsystem": "cmake-ninja",
+      "builddir": true,
+      "config-opts": [
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DBUILD_SHARED_LIBS=ON",
+        "-DBUILD_APPS=OFF",
+        "-DBUILD_DEC=ON",
+        "-DBUILD_ENC=ON",
+        "-DBUILD_TESTING=OFF"
+      ],
+      "cleanup": [
+        "/include"
+      ],
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://gitlab.com/AOMediaCodec/SVT-AV1.git",
+          "tag": "v0.8.6",
+          "commit": "a5ec26c0f0bd6e872a0b2bb340b4a777f4847020"
+        }
+      ]
+    },
+    {
       "name": "ffmpeg",
       "config-opts": [
         "--enable-gpl",
@@ -136,7 +230,10 @@
         "--enable-libvorbis",
         "--enable-libx264",
         "--enable-nvenc",
-        "--enable-libsrt"
+        "--enable-libsrt",
+        "--enable-librist",
+        "--enable-libaom",
+        "--enable-libsvtav1"
       ],
       "cleanup": [
         "/share/ffmpeg",
@@ -144,9 +241,27 @@
       ],
       "sources": [
         {
-          "type": "archive",
-          "url": "https://www.ffmpeg.org/releases/ffmpeg-4.3.2.tar.xz",
-          "sha256": "46e4e64f1dd0233cbc0934b9f1c0da676008cad34725113fb7f802cfa84ccddb"
+          "type": "git",
+          "url": "https://git.ffmpeg.org/ffmpeg.git",
+          "commit": "cc33e73618a981de7fd96385ecb34719de031f16",
+          "disable-shallow-clone": true
+        },
+        {
+          "type": "git",
+          "dest": "obs-deps",
+          "url": "https://github.com/obsproject/obs-deps.git",
+          "tag": "2022-01-01",
+          "commit": "15072cd42722d87c6b3ed1636b22e98c08575f20"
+        },
+        {
+          "type": "shell",
+          "commands": [
+            "git cherry-pick -n d1b47f3bfcc625ca1cae210fc198dcbd54381a88 # avcodec/vaapi_encode: Fix segfault upon closing uninitialized encoder",
+            "patch -Np1 -i obs-deps/CI/patches/FFmpeg-4.4.1-OBS.patch",
+            "patch -Np1 -i obs-deps/CI/patches/FFmpeg-4.4.1-librist.patch",
+            "patch -Np1 -i obs-deps/CI/patches/FFmpeg-4.4.1-libaomenc.patch",
+            "patch -Np1 -i obs-deps/CI/patches/FFmpeg-9010.patch"
+          ]
         }
       ]
     },
@@ -162,7 +277,7 @@
         {
           "type": "git",
           "url": "https://luajit.org/git/luajit-2.0.git",
-          "branch": "v2.1",
+          "commit": "ec6edc5c39c25e4eb3fca51b753f9995e97215da",
           "disable-shallow-clone": true
         },
         {
@@ -191,30 +306,6 @@
           "type": "archive",
           "url": "https://prdownloads.sourceforge.net/swig/swig-4.0.2.tar.gz",
           "sha256": "d53be9730d8d58a16bf0cbd1f8ac0c0c3e1090573168bfa151b01eb47fa906fc"
-        }
-      ]
-    },
-    {
-      "name": "mbedtls",
-      "buildsystem": "cmake-ninja",
-      "builddir": true,
-      "config-opts": [
-        "-DCMAKE_BUILD_TYPE=Release",
-        "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
-        "-DUSE_SHARED_MBEDTLS_LIBRARY=ON",
-        "-DUSE_STATIC_MBEDTLS_LIBRARY=OFF",
-        "-DENABLE_TESTING=OFF",
-        "-DENABLE_PROGRAMS=OFF"
-      ],
-      "cleanup": [
-        "/include"
-      ],
-      "sources": [
-        {
-          "type": "git",
-          "url": "https://github.com/ARMmbed/mbedtls.git",
-          "commit": "f71e2878084126737cc39083e1e15afc459bd93d",
-          "tag": "v2.27.0"
         }
       ]
     },
@@ -257,7 +348,7 @@
       "sources": [
         {
           "type": "git",
-          "url": "https://gitlab.freedesktop.org/pipewire/pipewire.git",
+          "url": "https://github.com/pipewire/pipewire.git",
           "tag": "0.3.40",
           "commit": "7afd80052b7c49754a13c9ab49c368f95b60e0a7"
         }

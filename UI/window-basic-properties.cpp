@@ -115,7 +115,6 @@ OBSBasicProperties::OBSBasicProperties(QWidget *parent, OBSSource source_)
 	layout()->addWidget(windowSplitter);
 
 	if (type == OBS_SOURCE_TYPE_TRANSITION) {
-		AddPreviewButton();
 		connect(view, SIGNAL(PropertiesRefreshed()), this,
 			SLOT(AddPreviewButton()));
 	}
@@ -212,7 +211,7 @@ OBSBasicProperties::~OBSBasicProperties()
 	}
 	obs_source_dec_showing(source);
 	main->SaveProject();
-	main->UpdateContextBar();
+	main->UpdateContextBarDeferred(true);
 }
 
 void OBSBasicProperties::AddPreviewButton()

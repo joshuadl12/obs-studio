@@ -1205,9 +1205,6 @@ EXPORT void obs_source_remove_caption_callback(obs_source_t *source,
 					       obs_source_caption_t callback,
 					       void *param);
 
-/** Get version of a source **/
-EXPORT uint32_t obs_source_get_version(const obs_source_t *source);
-
 enum obs_deinterlace_mode {
 	OBS_DEINTERLACE_MODE_DISABLE,
 	OBS_DEINTERLACE_MODE_DISCARD,
@@ -2208,6 +2205,9 @@ EXPORT uint32_t obs_encoder_get_height(const obs_encoder_t *encoder);
 
 /** For audio encoders, returns the sample rate of the audio */
 EXPORT uint32_t obs_encoder_get_sample_rate(const obs_encoder_t *encoder);
+
+/** For audio encoders, returns the frame size of the audio packet */
+EXPORT size_t obs_encoder_get_frame_size(const obs_encoder_t *encoder);
 
 /**
  * Sets the preferred video format for a video encoder.  If the encoder can use

@@ -19,136 +19,146 @@ else()
   set(_bin_suffix 32)
 endif()
 
-file(
-  GLOB
-  FFMPEG_BIN_FILES
-  "${FFMPEG_avcodec_INCLUDE_DIR}/../bin/avcodec-*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/../bin${_bin_suffix}/avcodec-*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/bin${_bin_suffix}/avcodec-*.dll"
-  "${FFMPEG_avformat_INCLUDE_DIR}/../bin/avformat-*.dll"
-  "${FFMPEG_avformat_INCLUDE_DIR}/../bin${_bin_suffix}/avformat-*.dll"
-  "${FFMPEG_avformat_INCLUDE_DIR}/bin${_bin_suffix}/avformat-*.dll"
-  "${FFMPEG_avutil_INCLUDE_DIR}/../bin/avutil-*.dll"
-  "${FFMPEG_avutil_INCLUDE_DIR}/../bin${_bin_suffix}/avutil-*.dll"
-  "${FFMPEG_avutil_INCLUDE_DIR}/bin${_bin_suffix}/avutil-*.dll"
-  "${FFMPEG_avdevice_INCLUDE_DIR}/../bin/avdevice-*.dll"
-  "${FFMPEG_avdevice_INCLUDE_DIR}/../bin${_bin_suffix}/avdevice-*.dll"
-  "${FFMPEG_avdevice_INCLUDE_DIR}/bin${_bin_suffix}/avdevice-*.dll"
-  "${FFMPEG_avfilter_INCLUDE_DIR}/../bin/avfilter-*.dll"
-  "${FFMPEG_avfilter_INCLUDE_DIR}/../bin${_bin_suffix}/avfilter-*.dll"
-  "${FFMPEG_avfilter_INCLUDE_DIR}/bin${_bin_suffix}/avfilter-*.dll"
-  "${FFMPEG_postproc_INCLUDE_DIR}/../bin/postproc-*.dll"
-  "${FFMPEG_postproc_INCLUDE_DIR}/../bin${_bin_suffix}/postproc-*.dll"
-  "${FFMPEG_postproc_INCLUDE_DIR}/bin${_bin_suffix}/postproc-*.dll"
-  "${FFMPEG_swscale_INCLUDE_DIR}/../bin/swscale-*.dll"
-  "${FFMPEG_swscale_INCLUDE_DIR}/bin${_bin_suffix}/swscale-*.dll"
-  "${FFMPEG_swscale_INCLUDE_DIR}/../bin${_bin_suffix}/swscale-*.dll"
-  "${FFMPEG_swresample_INCLUDE_DIR}/../bin/swresample-*.dll"
-  "${FFMPEG_swresample_INCLUDE_DIR}/../bin${_bin_suffix}/swresample-*.dll"
-  "${FFMPEG_swresample_INCLUDE_DIR}/bin${_bin_suffix}/swresample-*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libopus*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/../bin/opus*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/bin/libopus*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/bin/opus*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libogg*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libvorbis*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/bin/libogg*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/bin/libvorbis*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libvpx*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/bin/libvpx*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libsrt*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/bin/libsrt*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libmbedcrypto*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/bin/libmbedcrypto*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libmbedtls*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/bin/libmbedtls*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libmbedx509*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/bin/libmbedx509*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/../bin${_bin_suffix}/libopus*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/../bin${_bin_suffix}/opus*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/bin${_bin_suffix}/libopus*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/bin${_bin_suffix}/opus*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libbz2*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/../bin/zlib*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/bin/libbz2*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/bin/zlib*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/../bin${_bin_suffix}/libSvtAv1Enc.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/bin${_bin_suffix}/libSvtAv1Enc.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libSvtAv1Enc.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/bin/libSvtAv1Enc.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/../bin${_bin_suffix}/libaom.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/bin${_bin_suffix}/libaom.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libaom.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/bin/libaom.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/../bin${_bin_suffix}/libbz2*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/../bin${_bin_suffix}/zlib*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/bin${_bin_suffix}/libbz2*.dll"
-  "${FFMPEG_avcodec_INCLUDE_DIR}/bin${_bin_suffix}/zlib*.dll")
+file(GLOB FFMPEG_BIN_FILES
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/avcodec-*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin${_bin_suffix}/avcodec-*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin${_bin_suffix}/avcodec-*.dll"
 
-file(
-  GLOB
-  X264_BIN_FILES
-  "${X264_INCLUDE_DIR}/../bin${_bin_suffix}/libx264-*.dll"
-  "${X264_INCLUDE_DIR}/../bin/libx264-*.dll"
-  "${X264_INCLUDE_DIR}/bin/libx264-*.dll"
-  "${X264_INCLUDE_DIR}/bin${_bin_suffix}/libx264-*.dll")
+	"${FFMPEG_avformat_INCLUDE_DIR}/../bin/avformat-*.dll"
+	"${FFMPEG_avformat_INCLUDE_DIR}/../bin${_bin_suffix}/avformat-*.dll"
+	"${FFMPEG_avformat_INCLUDE_DIR}/bin${_bin_suffix}/avformat-*.dll"
 
-file(
-  GLOB
-  FREETYPE_BIN_FILES
-  "${FREETYPE_INCLUDE_DIR_ft2build}/../../bin${_bin_suffix}/libfreetype*-*.dll"
-  "${FREETYPE_INCLUDE_DIR_ft2build}/../../bin/libfreetype*-*.dll"
-  "${FREETYPE_INCLUDE_DIR_ft2build}/../bin${_bin_suffix}/libfreetype*-*.dll"
-  "${FREETYPE_INCLUDE_DIR_ft2build}/../bin/libfreetype*-*.dll"
-  "${FREETYPE_INCLUDE_DIR_ft2build}/bin/libfreetype*-*.dll"
-  "${FREETYPE_INCLUDE_DIR_ft2build}/bin${_bin_suffix}/libfreetype*-*.dll")
+	"${FFMPEG_avutil_INCLUDE_DIR}/../bin/avutil-*.dll"
+	"${FFMPEG_avutil_INCLUDE_DIR}/../bin${_bin_suffix}/avutil-*.dll"
+	"${FFMPEG_avutil_INCLUDE_DIR}/bin${_bin_suffix}/avutil-*.dll"
 
-file(
-  GLOB
-  LIBFDK_BIN_FILES
-  "${Libfdk_INCLUDE_DIR}/../bin${_bin_suffix}/libfdk*-*.dll"
-  "${Libfdk_INCLUDE_DIR}/../bin/libfdk*-*.dll"
-  "${Libfdk_INCLUDE_DIR}/bin/libfdk*-*.dll"
-  "${Libfdk_INCLUDE_DIR}/bin${_bin_suffix}/libfdk*-*.dll")
+	"${FFMPEG_avdevice_INCLUDE_DIR}/../bin/avdevice-*.dll"
+	"${FFMPEG_avdevice_INCLUDE_DIR}/../bin${_bin_suffix}/avdevice-*.dll"
+	"${FFMPEG_avdevice_INCLUDE_DIR}/bin${_bin_suffix}/avdevice-*.dll"
 
-file(
-  GLOB
-  SSL_BIN_FILES
-  "${SSL_INCLUDE_DIR}/../bin${_bin_suffix}/ssleay32*.dll"
-  "${SSL_INCLUDE_DIR}/../bin${_bin_suffix}/libeay32*.dll"
-  "${SSL_INCLUDE_DIR}/../bin/ssleay32*.dll"
-  "${SSL_INCLUDE_DIR}/../bin/libeay32*.dll"
-  "${SSL_INCLUDE_DIR}/bin${_bin_suffix}/ssleay32*.dll"
-  "${SSL_INCLUDE_DIR}/bin${_bin_suffix}/libeay32*.dll"
-  "${SSL_INCLUDE_DIR}/bin/ssleay32*.dll"
-  "${SSL_INCLUDE_DIR}/bin/libeay32*.dll")
+	"${FFMPEG_avfilter_INCLUDE_DIR}/../bin/avfilter-*.dll"
+	"${FFMPEG_avfilter_INCLUDE_DIR}/../bin${_bin_suffix}/avfilter-*.dll"
+	"${FFMPEG_avfilter_INCLUDE_DIR}/bin${_bin_suffix}/avfilter-*.dll"
 
-file(
-  GLOB
-  CURL_BIN_FILES
-  "${CURL_INCLUDE_DIR}/../build/Win${_bin_suffix}/VC12/DLL Release - DLL Windows SSPI/libcurl.dll"
-  "${CURL_INCLUDE_DIR}/../bin${_bin_suffix}/libcurl*.dll"
-  "${CURL_INCLUDE_DIR}/../bin${_bin_suffix}/curl*.dll"
-  "${CURL_INCLUDE_DIR}/../bin/libcurl*.dll"
-  "${CURL_INCLUDE_DIR}/../bin/curl*.dll"
-  "${CURL_INCLUDE_DIR}/bin${_bin_suffix}/libcurl*.dll"
-  "${CURL_INCLUDE_DIR}/bin${_bin_suffix}/curl*.dll"
-  "${CURL_INCLUDE_DIR}/bin/libcurl*.dll"
-  "${CURL_INCLUDE_DIR}/bin/curl*.dll")
+	"${FFMPEG_postproc_INCLUDE_DIR}/../bin/postproc-*.dll"
+	"${FFMPEG_postproc_INCLUDE_DIR}/../bin${_bin_suffix}/postproc-*.dll"
+	"${FFMPEG_postproc_INCLUDE_DIR}/bin${_bin_suffix}/postproc-*.dll"
 
-file(
-  GLOB
-  LUA_BIN_FILES
-  "${LUAJIT_INCLUDE_DIR}/../../bin${_bin_suffix}/lua*.dll"
-  "${LUAJIT_INCLUDE_DIR}/../../bin/lua*.dll"
-  "${LUAJIT_INCLUDE_DIR}/../bin${_bin_suffix}/lua*.dll"
-  "${LUAJIT_INCLUDE_DIR}/../bin/lua*.dll"
-  "${LUAJIT_INCLUDE_DIR}/bin${_bin_suffix}/lua*.dll"
-  "${LUAJIT_INCLUDE_DIR}/bin/lua*.dll"
-  "${LUAJIT_INCLUDE_DIR}/lua*.dll")
+	"${FFMPEG_swscale_INCLUDE_DIR}/../bin/swscale-*.dll"
+	"${FFMPEG_swscale_INCLUDE_DIR}/bin${_bin_suffix}/swscale-*.dll"
+	"${FFMPEG_swscale_INCLUDE_DIR}/../bin${_bin_suffix}/swscale-*.dll"
 
-if(ZLIB_LIB)
-  get_filename_component(ZLIB_BIN_PATH ${ZLIB_LIB} PATH)
+	"${FFMPEG_swresample_INCLUDE_DIR}/../bin/swresample-*.dll"
+	"${FFMPEG_swresample_INCLUDE_DIR}/../bin${_bin_suffix}/swresample-*.dll"
+	"${FFMPEG_swresample_INCLUDE_DIR}/bin${_bin_suffix}/swresample-*.dll"
+
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libopus*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/opus*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin/libopus*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin/opus*.dll"
+
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libogg*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libvorbis*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin/libogg*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin/libvorbis*.dll"
+
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libvpx*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin/libvpx*.dll"
+
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libsrt*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin/libsrt*.dll"
+
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libmbedcrypto*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin/libmbedcrypto*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libmbedtls*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin/libmbedtls*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libmbedx509*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin/libmbedx509*.dll"
+
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin${_bin_suffix}/libopus*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin${_bin_suffix}/opus*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin${_bin_suffix}/libopus*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin${_bin_suffix}/opus*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libbz2*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/zlib*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin/libbz2*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin/zlib*.dll"
+
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin${_bin_suffix}/libSvtAv1Enc.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin${_bin_suffix}/libSvtAv1Enc.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libSvtAv1Enc.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin/libSvtAv1Enc.dll"
+
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin${_bin_suffix}/libaom.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin${_bin_suffix}/libaom.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libaom.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin/libaom.dll"
+
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin${_bin_suffix}/librist.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin${_bin_suffix}/librist.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/librist.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin/librist.dll"
+
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin${_bin_suffix}/libbz2*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin${_bin_suffix}/zlib*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin${_bin_suffix}/libbz2*.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/bin${_bin_suffix}/zlib*.dll"
+	)
+
+file(GLOB X264_BIN_FILES
+	"${X264_INCLUDE_DIR}/../bin${_bin_suffix}/libx264-*.dll"
+	"${X264_INCLUDE_DIR}/../bin/libx264-*.dll"
+	"${X264_INCLUDE_DIR}/bin/libx264-*.dll"
+	"${X264_INCLUDE_DIR}/bin${_bin_suffix}/libx264-*.dll")
+
+file(GLOB FREETYPE_BIN_FILES
+	"${FREETYPE_INCLUDE_DIR_ft2build}/../../bin${_bin_suffix}/libfreetype*-*.dll"
+	"${FREETYPE_INCLUDE_DIR_ft2build}/../../bin/libfreetype*-*.dll"
+	"${FREETYPE_INCLUDE_DIR_ft2build}/../bin${_bin_suffix}/libfreetype*-*.dll"
+	"${FREETYPE_INCLUDE_DIR_ft2build}/../bin/libfreetype*-*.dll"
+	"${FREETYPE_INCLUDE_DIR_ft2build}/bin/libfreetype*-*.dll"
+	"${FREETYPE_INCLUDE_DIR_ft2build}/bin${_bin_suffix}/libfreetype*-*.dll")
+
+file(GLOB LIBFDK_BIN_FILES
+	"${Libfdk_INCLUDE_DIR}/../bin${_bin_suffix}/libfdk*-*.dll"
+	"${Libfdk_INCLUDE_DIR}/../bin/libfdk*-*.dll"
+	"${Libfdk_INCLUDE_DIR}/bin/libfdk*-*.dll"
+	"${Libfdk_INCLUDE_DIR}/bin${_bin_suffix}/libfdk*-*.dll")
+
+file(GLOB SSL_BIN_FILES
+	"${SSL_INCLUDE_DIR}/../bin${_bin_suffix}/ssleay32*.dll"
+	"${SSL_INCLUDE_DIR}/../bin${_bin_suffix}/libeay32*.dll"
+	"${SSL_INCLUDE_DIR}/../bin/ssleay32*.dll"
+	"${SSL_INCLUDE_DIR}/../bin/libeay32*.dll"
+	"${SSL_INCLUDE_DIR}/bin${_bin_suffix}/ssleay32*.dll"
+	"${SSL_INCLUDE_DIR}/bin${_bin_suffix}/libeay32*.dll"
+	"${SSL_INCLUDE_DIR}/bin/ssleay32*.dll"
+	"${SSL_INCLUDE_DIR}/bin/libeay32*.dll")
+
+file(GLOB CURL_BIN_FILES
+	"${CURL_INCLUDE_DIR}/../build/Win${_bin_suffix}/VC12/DLL Release - DLL Windows SSPI/libcurl.dll"
+	"${CURL_INCLUDE_DIR}/../bin${_bin_suffix}/libcurl*.dll"
+	"${CURL_INCLUDE_DIR}/../bin${_bin_suffix}/curl*.dll"
+	"${CURL_INCLUDE_DIR}/../bin/libcurl*.dll"
+	"${CURL_INCLUDE_DIR}/../bin/curl*.dll"
+	"${CURL_INCLUDE_DIR}/bin${_bin_suffix}/libcurl*.dll"
+	"${CURL_INCLUDE_DIR}/bin${_bin_suffix}/curl*.dll"
+	"${CURL_INCLUDE_DIR}/bin/libcurl*.dll"
+	"${CURL_INCLUDE_DIR}/bin/curl*.dll"
+	)
+
+file(GLOB LUA_BIN_FILES
+	"${LUAJIT_INCLUDE_DIR}/../../bin${_bin_suffix}/lua*.dll"
+	"${LUAJIT_INCLUDE_DIR}/../../bin/lua*.dll"
+	"${LUAJIT_INCLUDE_DIR}/../bin${_bin_suffix}/lua*.dll"
+	"${LUAJIT_INCLUDE_DIR}/../bin/lua*.dll"
+	"${LUAJIT_INCLUDE_DIR}/bin${_bin_suffix}/lua*.dll"
+	"${LUAJIT_INCLUDE_DIR}/bin/lua*.dll"
+	"${LUAJIT_INCLUDE_DIR}/lua*.dll"
+	)
+
+if (ZLIB_LIB)
+	GET_FILENAME_COMPONENT(ZLIB_BIN_PATH ${ZLIB_LIB} PATH)
 endif()
 file(GLOB ZLIB_BIN_FILES "${ZLIB_BIN_PATH}/zlib*.dll")
 

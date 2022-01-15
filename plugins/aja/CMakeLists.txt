@@ -20,25 +20,30 @@ find_package(LibAJANTV2 REQUIRED)
 add_library(aja MODULE)
 add_library(OBS::aja ALIAS aja)
 
-target_sources(
-  aja
-  PRIVATE main.cpp
-          aja-card-manager.cpp
-          aja-common.cpp
-          aja-common.hpp
-          aja-output.cpp
-          aja-enums.hpp
-          aja-output.hpp
-          aja-props.cpp
-          aja-props.hpp
-          aja-routing.cpp
-          aja-routing.hpp
-          aja-source.cpp
-          aja-source.hpp
-          aja-widget-io.cpp
-          aja-widget-io.hpp
-          aja-card-manager.hpp
-          aja-ui-props.hpp)
+set(aja_SOURCES
+	main.cpp
+	aja-card-manager.cpp
+	aja-common.cpp
+	aja-output.cpp
+	aja-presets.cpp
+	aja-props.cpp
+	aja-routing.cpp
+	aja-source.cpp
+	aja-vpid-data.cpp
+	aja-widget-io.cpp)
+
+set(aja_HEADERS
+	aja-card-manager.hpp
+	aja-common.hpp
+	aja-enums.hpp
+	aja-ui-props.hpp
+	aja-output.hpp
+	aja-presets.hpp
+	aja-props.hpp
+	aja-routing.hpp
+	aja-source.hpp
+	aja-vpid-data.hpp
+	aja-widget-io.hpp)
 
 target_link_libraries(aja PRIVATE OBS::libobs AJA::LibAJANTV2)
 
