@@ -1,21 +1,30 @@
 project(aja)
 
-option(ENABLE_AJA "Build OBS with aja support" ON)
-if(NOT ENABLE_AJA)
-  message(STATUS "OBS:  DISABLED   aja")
-  return()
+if(DISABLE_AJA)
+	message(STATUS "aja plugin disabled")
+	return()
 endif()
 
-if(NOT OS_MACOS AND NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
-  message(
-    STATUS "OBS:             aja support not enabled (32-bit not supported)")
-  set(ENABLE_AJA
-      OFF
-      CACHE BOOL "Build OBS with aja support" FORCE)
-  return()
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+	find_package(LibAJANTV2)
+	if (NOT LIBAJANTV2_FOUND)
+		message(STATUS "aja plugin disabled (deps not found)")
+		return()
+	else()
+		message("aja plugin includes: ${LIBAJANTV2_INCLUDE_DIRS}")
+		message("aja plugin libs: ${LIBAJANTV2_LIBRARIES}")
+		message("aja plugin debug libs: ${LIBAJANTV2_DEBUG_LIBRARIES}")
+	endif()
+else()
+	message(STATUS "aja plugin disabled (32-bit not supported)")
+	return()
 endif()
 
-find_package(LibAJANTV2 REQUIRED)
+set(aja_INCLUDE_DIRS
+	${LIBAJANTV2_INCLUDE_DIRS})
+set(aja_LIBRARIES
+	$<IF:$<CONFIG:Debug>,${LIBAJANTV2_DEBUG_LIBRARIES},${LIBAJANTV2_LIBRARIES}>
+	libobs)
 
 set(aja_SOURCES
 	main.cpp
@@ -42,29 +51,61 @@ set(aja_HEADERS
 	aja-vpid-data.hpp
 	aja-widget-io.hpp)
 
-target_link_libraries(aja PRIVATE OBS::libobs AJA::LibAJANTV2)
+# macOS
+if(APPLE)
+	set(aja_COMPILE_DEFS
+		AJAMac
+		AJA_MAC)
 
-if(TARGET AJA::LibAJANTV2_Debug)
-  target_link_libraries(aja PRIVATE debug AJA::LibAJANTV2_Debug)
+	find_library(IOKIT_FRAMEWORK Iokit)
+	find_library(COREFOUNDATION_LIBRARY CoreFoundation)
+	find_library(APPKIT_FRAMEWORK AppKit)
+
+	list(APPEND aja_LIBRARIES
+		${IOKIT_FRAMEWORK}
+		${COREFOUNDATION_LIBRARY}
+		${APPKIT_FRAMEWORK})
+# Windows
+elseif(WIN32)
+	set(aja_COMPILE_DEFS
+		AJA_WINDOWS
+		_WINDOWS
+		WIN32
+		MSWindows)
+
+	if(CMAKE_BUILD_TYPE STREQUAL Debug)
+		list(APPEND aja_COMPILE_DEFS
+			_DEBUG)
+	else()
+		list(APPEND aja_COMPILE_DEFS
+			NDEBUG)
+	endif()
+
+	list(APPEND aja_LIBRARIES
+		ws2_32.lib
+		setupapi.lib
+		Winmm.lib
+		netapi32.lib
+		Shlwapi.lib)
+
+	set(MODULE_DESCRIPTION "OBS AJA Windows module")
+	configure_file(${CMAKE_SOURCE_DIR}/cmake/winrc/obs-module.rc.in win-aja.rc)
+	list(APPEND aja_SOURCES
+		win-aja.rc)
+# Linux
+elseif(UNIX AND NOT APPLE)
+	set(aja_COMPILE_DEFS
+		AJA_LINUX
+		AJALinux)
 endif()
 
-if(OS_MACOS)
-  find_library(IOKIT IOKit)
-  find_library(COREFOUNDATION CoreFoundation)
-  find_library(APPKIT AppKit)
+add_library(aja MODULE ${aja_SOURCES} ${aja_HEADERS})
 
-  target_link_libraries(aja PRIVATE ${IOKIT} ${COREFOUNDATION} ${APPKIT})
-elseif(OS_WINDOWS)
-  set(MODULE_DESCRIPTION "OBS AJA Windows module")
-  configure_file(${CMAKE_SOURCE_DIR}/cmake/bundle/windows/obs-module.rc.in
-                 win-aja.rc)
+target_include_directories(aja PUBLIC ${aja_INCLUDE_DIRS})
+target_link_libraries(aja PUBLIC ${aja_LIBRARIES})
+target_compile_definitions(aja PUBLIC ${aja_COMPILE_DEFS})
 
-  target_sources(aja PRIVATE win-aja.rc)
+set_target_properties(aja PROPERTIES FOLDER
+		"plugins")
 
-  target_link_libraries(aja PRIVATE ws2_32.lib setupapi.lib Winmm.lib
-                                    netapi32.lib Shlwapi.lib)
-endif()
-
-set_target_properties(aja PROPERTIES FOLDER "plugins/aja" PREFIX "")
-
-setup_plugin_target(aja)
+install_obs_plugin_with_data(aja data)
