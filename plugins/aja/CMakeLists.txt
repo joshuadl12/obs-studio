@@ -17,9 +17,6 @@ endif()
 
 find_package(LibAJANTV2 REQUIRED)
 
-add_library(aja MODULE)
-add_library(OBS::aja ALIAS aja)
-
 set(aja_SOURCES
 	main.cpp
 	aja-card-manager.cpp
